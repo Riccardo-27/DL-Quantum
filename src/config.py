@@ -42,7 +42,7 @@ MAG_SLICE = slice(0, N_MAG)
 CORR_SLICE = slice(N_MAG, N_FEATURES)
 
 # ---------------------------------------------------------------------------
-# Iperparametri di default (GUIDA_UNICA §3.6 e §4.0)
+# Iperparametri di default
 # ---------------------------------------------------------------------------
 DEFAULT_CONFIG: dict = {
     # --- riproducibilita' ---
@@ -66,7 +66,7 @@ DEFAULT_CONFIG: dict = {
     "sr_t_in": 20,                    # punti osservati in input (super-res)
 
     # --- preprocessing ---
-    "normalization": "none",          # "none" | "zscore"  (da decidere in S2)
+    "normalization": "none",          # "none" | "zscore"
     "output_activation": "tanh",
 
     # --- modello ---

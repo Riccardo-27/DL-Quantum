@@ -48,7 +48,7 @@ def validate_raw(
     dt: float = DT,
     atol: float = 1e-6,
 ) -> dict:
-    """Esegue le verifiche dello step S2 e restituisce un report.
+    """Esegue le verifiche di integrità del dataset e restituisce un report.
 
     Non solleva eccezioni: ogni check produce ``True/False`` cosi' le anomalie
     possono essere documentate nel ``decision_log`` invece di bloccare tutto.
