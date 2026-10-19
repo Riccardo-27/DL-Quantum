@@ -84,6 +84,8 @@ dl-quantum/
 
 ## ☁️ Esecuzione su Google Colab
 
+Per configurare l'ambiente cloud, montare la cartella condivisa di Google Drive e gestire le credenziali Git in sicurezza, consulta la guida passo-passo dedicata: **[Guida Rapida Colab (SETUP_COLAB.md)](SETUP_COLAB.md)**.
+
 Gli addestramenti pesanti e le sessioni di tuning vengono eseguiti su Google Colab con acceleratore GPU (T4):
 
 1. **Collocazione dei dati**: Posizionare `trajectories.csv` (~464 MB) nella cartella Google Drive: `MyDrive/DL-Quantum/data/trajectories.csv`.
