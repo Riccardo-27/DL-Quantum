@@ -124,7 +124,44 @@ def get_root() -> Path:
         return Path(env)
     if COLAB_DRIVE_ROOT.exists():
         return COLAB_DRIVE_ROOT
+    # Se siamo su Colab ma la cartella su Drive ha un nome diverso o è una scorciatoia
+    drive_root = Path("/content/drive/MyDrive")
+    if drive_root.exists():
+        for cand in ["DL-Quantum", "Quantum-Dynamics", "Quantum Dynamics"]:
+            if (drive_root / cand).exists():
+                return drive_root / cand
     return REPO_ROOT
+
+
+def find_data_csv(root: Path) -> Path:
+    """Individua trajectories.csv in modo robusto (utile con cartelle condivise su Drive)."""
+    env = os.environ.get("DLQ_DATA_CSV")
+    if env:
+        p = Path(env)
+        if p.exists():
+            return p
+
+    candidates = [
+        root / "data" / "trajectories.csv",
+        root / "trajectories.csv",
+        Path("/content/drive/MyDrive/DL-Quantum/data/trajectories.csv"),
+        Path("/content/drive/MyDrive/DL-Quantum/trajectories.csv"),
+        Path("/content/drive/MyDrive/Quantum Dynamics/data/trajectories.csv"),
+        Path("/content/drive/MyDrive/Quantum Dynamics/trajectories.csv"),
+        Path("/content/drive/MyDrive/trajectories.csv"),
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+
+    # Se siamo su Colab, ricerca rapida in MyDrive o cartelle condivise
+    drive_root = Path("/content/drive/MyDrive")
+    if drive_root.exists():
+        found = list(drive_root.glob("**/trajectories.csv"))
+        if found:
+            return found[0]
+
+    return root / "data" / "trajectories.csv"
 
 
 def get_paths(create: bool = True) -> dict[str, Path]:
@@ -132,7 +169,7 @@ def get_paths(create: bool = True) -> dict[str, Path]:
     root = get_root()
     paths = {
         "root": root,
-        "data_csv": Path(os.environ.get("DLQ_DATA_CSV", root / "data" / "trajectories.csv")),
+        "data_csv": find_data_csv(root),
         "cache": root / "data" / "cache",
         "results": root / "results",
         "figures": root / "figures",
