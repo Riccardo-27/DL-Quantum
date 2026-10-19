@@ -1,79 +1,114 @@
 # DL-Quantum – Quantum Dynamics Forecasting
 
-Progetto di Deep Learning per la previsione della dinamica quantistica nel modello PXP (10 qubit).
+Previsione della dinamica quantistica di non-equilibrio nel modello PXP (catena unidimensionale a 10 qubit) mediante modelli di Deep Learning ricorrenti e basati su attenzione.
 
-## 📁 Struttura del Progetto
+---
+
+## 🔬 Descrizione del Problema e Dataset
+
+Il progetto affronta la previsione temporale dello stato quantistico di una catena di 10 atomi di Rydberg governata dall'Hamiltoniana PXP, caratterizzata dal fenomeno delle *quantum many-body scars*.
+
+* **Dimensioni del dataset**: 400 traiettorie simulate indipendenti, ciascuna composta da 1001 time step con passo temporale $\Delta t = 0.02$ ($t \in [0, 20]$).
+* **55 Variabili fisiche osservabili**:
+  * $10$ Magnetizzazioni locali $m_i(t) = \langle \sigma_i^z(t) \rangle \in [-1, 1]$ per ciascun qubit $i \in \{1, \dots, 10\}$.
+  * $45$ Correlazioni a due punti connesse/disconnesse $c_{ij}(t) = \langle \sigma_i^z(t) \sigma_j^z(t) \rangle \in [-1, 1]$ per ogni coppia $i < j$.
+* **Obiettivi e sfide**:
+  1. **Previsione multi-orizzonte**: previsione di una finestra futura $T_{out} = 40$ istanti temporali a partire da contesti di lunghezza variabile $T_{in} \in \{5, 10, 20, 40\}$.
+  2. **Super-risoluzione temporale**: ricostruzione della traiettoria continua a frequenza nativa ($\Delta t = 0.02$) a partire da input sottocampionato con passo dimezzato ($2 \times \Delta t = 0.04$).
+  3. **Confronto architetturale**: modelli ricorrenti (LSTM / GRU) e modelli Transformer con cross-attention ed embedding temporale continuo.
+
+---
+
+## 📁 Struttura del Repository
 
 ```text
 dl-quantum/
-├── src/                      # Moduli Python riutilizzabili
+├── src/                      # Moduli Python riutilizzabili e testati
 │   ├── config.py             # Configurazione centralizzata (iperparametri e percorsi)
-│   ├── seeding.py            # Riproducibilità e fissaggio seed
-│   ├── data.py               # Lettura CSV, verifica integrità, split per traiettoria
-│   ├── windowing.py          # Finestre temporali, super-resolution, decoder inputs
-│   ├── metrics.py            # Metriche globali e disaggregate (per qubit, coppia, orizzonte)
-│   ├── stats.py              # Media, std e intervallo di confidenza 95% (t di Student)
-│   ├── results_log.py        # Append su CSV con gestione multi-autore
-│   ├── plots.py              # Grafici standardizzati .jpeg a 300 dpi
-│   └── training.py           # Loop di training ibrido parametrico (TF -> MM -> SS)
-├── tests/                    # Test di integrità della pipeline
-│   └── test_s1_gate.py       # Test determinismo, shapes, leakage check e metriche
-├── notebooks/                # Notebook di analisi ed esperimenti
-│   ├── 01_data.ipynb         # Analisi dati, integrità, split e normalizzazione
-│   ├── 02_windowing.ipynb    # Finestre temporali e super-resolution
+│   ├── seeding.py            # Riproducibilità e fissaggio seed multi-framework
+│   ├── data.py               # Lettura CSV, validazione fisica, split per traiettoria
+│   ├── windowing.py          # Finestre temporali, super-resolution, controlli anti-leakage
+│   ├── metrics.py            # Metriche globali e disaggregate (qubit, coppie, orizzonte)
+│   ├── stats.py              # Statistiche e intervalli di confidenza 95% (t di Student)
+│   ├── results_log.py        # Log concorrente su CSV separato per autore
+│   ├── plots.py              # Esportazione grafici standardizzati JPEG (>= 300 dpi)
+│   └── training.py           # Loop di addestramento ibrido (TF -> MM -> SS)
+├── tests/                    # Test automatici di integrità della pipeline
+│   └── test_pipeline.py      # Test determinismo, shapes, anti-leakage e metriche
+├── notebooks/                # Notebook di analisi, esperimenti e visualizzazione
+│   ├── 01_data.ipynb         # Esplorazione dati, split (280/60/60) e normalizzazione
+│   ├── 02_windowing.ipynb    # Generazione finestre temporali e super-risoluzione
 │   ├── 03_rnn.ipynb          # Modelli ricorrenti (LSTM / GRU)
-│   ├── 04_transformer.ipynb  # Modelli Transformer (Encoder-Decoder con cross-attention)
-│   └── 05_inference.ipynb    # Pipeline di inferenza rapida e demo
-├── results/                  # Risultati numerici (log, split_indices.npz)
-├── figures/                  # Grafici JPEG esportati a 300 dpi
-├── checkpoints/              # Checkpoint dei modelli addestrati (.keras)
-├── report/                   # Relazione finale
-├── slides/                   # Presentazione per l'orale
-├── decision_log.md           # Registro decisionale di progetto
-└── requirements.txt          # Dipendenze Python
+│   ├── 04_transformer.ipynb  # Modelli Transformer (Encoder-Decoder)
+│   └── 05_inference.ipynb    # Pipeline di inferenza rapida e benchmark finale
+├── results/                  # File di log sperimentali e indici dello split (split_indices.npz)
+├── figures/                  # Grafici JPEG ad alta risoluzione (>= 300 dpi)
+├── checkpoints/              # Pesi dei modelli addestrati (.keras, esclusi da git)
+├── report/                   # Relazione tecnica di progetto
+├── slides/                   # Presentazione per l'esposizione orale
+├── decision_log.md           # Registro delle decisioni architetturali e metodologiche
+├── requirements.txt          # Dipendenze principali del progetto
+└── requirements-lock.txt     # Snapshot completo per la riproducibilità esatta
 ```
+
+---
 
 ## 🚀 Setup Locale
 
-1. **Attivazione Virtual Environment**:
+1. **Clonazione del repository**:
+   ```bash
+   git clone https://github.com/Riccardo-27/DL-Quantum.git
+   cd DL-Quantum
+   ```
+
+2. **Creazione e attivazione del Virtual Environment**:
    ```powershell
    # Windows PowerShell
+   python -m venv .venv
    .venv\Scripts\Activate.ps1
    ```
-2. **Esecuzione Test di Integrità**:
+
+3. **Installazione delle dipendenze**:
    ```powershell
-   .venv\Scripts\pytest tests/test_s1_gate.py -v
+   pip install -r requirements.txt
+   # Per replicare l'ambiente esatto:
+   # pip install -r requirements-lock.txt
    ```
+
+4. **Esecuzione dei test di verifica**:
+   ```powershell
+   .venv\Scripts\pytest tests/test_pipeline.py -v
+   ```
+
+---
 
 ## ☁️ Esecuzione su Google Colab
 
-I modelli pesanti e gli addestramenti vengono eseguiti su Google Colab con accelerazione GPU (T4):
+Gli addestramenti pesanti e le sessioni di tuning vengono eseguiti su Google Colab con acceleratore GPU (T4):
 
-1. **Dataset**: Caricare `trajectories.csv` (~464 MB) nella cartella Google Drive: `MyDrive/DL-Quantum/data/trajectories.csv`.
-2. **Cella di Setup iniziale per ogni Notebook**:
+1. **Collocazione dei dati**: Posizionare `trajectories.csv` (~464 MB) nella cartella Google Drive: `MyDrive/DL-Quantum/data/trajectories.csv`.
+2. **Cella iniziale di setup in ciascun notebook**:
    ```python
-   # 1. Monta Drive
    from google.colab import drive
    drive.mount('/content/drive')
 
-   # 2. Configura il path di importazione dei moduli src/
    import sys
    REPO_PATH = '/content/drive/MyDrive/DL-Quantum'
    if REPO_PATH not in sys.path:
        sys.path.insert(0, REPO_PATH)
 
-   # 3. Fissa i seed e il determinismo
    from src.seeding import set_seeds
    set_seeds(42)
 
-   # 4. Verifica GPU
    import tensorflow as tf
-   print("GPU:", tf.config.list_physical_devices('GPU'))
+   print("GPU disponibile:", tf.config.list_physical_devices('GPU'))
    ```
+
+---
 
 ## 👥 Flusso di Lavoro Collaborativo su GitHub
 
-- **Repository**: Privato su GitHub.
-- **Branching**: Branch separati per feature/esperimenti (es. `feat/rnn`, `feat/transformer`) con Pull Request su `main`.
-- **Ownership Notebook**: Assegnare ciascun notebook `.ipynb` a un unico collega per evitare conflitti di merge sui file JSON dei notebook.
-- **Dati & Checkpoint**: I file `trajectories.csv`, `.npy` e i modelli `.keras` sono esclusi da Git tramite `.gitignore` e risiedono esclusivamente su Google Drive.
+* **Repository pubblico**: Codice sorgente, notebook documentati e log numerici (`results/results_log_*.csv`) sono liberamente accessibili e versionati.
+* **Separazione dati e codice**: Come definito in `.gitignore`, i file di grandi dimensioni (`trajectories.csv`, array binari `.npy` e checkpoint `.keras`) risiedono esclusivamente su Google Drive per non appesantire la cronologia Git.
+* **Branching Model**: Sviluppo su branch dedicati alle funzionalità (`dev-ernesto`, `feat/...`) e unione sul branch `main` tramite Pull Request.
+* **Metriche condivise**: Ogni autore scrive su un proprio log dedicato (`results/results_log_<autore>.csv`) per consentire run paralleli su Colab senza conflitti di concorrenza.
