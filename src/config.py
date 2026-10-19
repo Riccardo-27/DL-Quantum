@@ -122,14 +122,13 @@ def get_root() -> Path:
     env = os.environ.get("DLQ_ROOT")
     if env:
         return Path(env)
+    if (COLAB_DRIVE_ROOT / "src" / "seeding.py").exists():
+        return COLAB_DRIVE_ROOT
+    colab_local = Path("/content/DL-Quantum")
+    if (colab_local / "src" / "seeding.py").exists():
+        return colab_local
     if COLAB_DRIVE_ROOT.exists():
         return COLAB_DRIVE_ROOT
-    # Se siamo su Colab ma la cartella su Drive ha un nome diverso o è una scorciatoia
-    drive_root = Path("/content/drive/MyDrive")
-    if drive_root.exists():
-        for cand in ["DL-Quantum", "Quantum-Dynamics", "Quantum Dynamics"]:
-            if (drive_root / cand).exists():
-                return drive_root / cand
     return REPO_ROOT
 
 
