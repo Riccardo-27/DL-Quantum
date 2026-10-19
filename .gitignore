@@ -1,59 +1,35 @@
-# Python / Virtual Environment
+# Virtual Environment & Python
 .venv/
-venv/
-ENV/
-env/
 __pycache__/
 *.py[cod]
-*$py.class
-*.egg-info/
-dist/
-build/
 
-# Jupyter / Colab
+# Jupyter Notebook & Colab
 .ipynb_checkpoints/
-*/.ipynb_checkpoints/*
 
-# Dati pesanti e cache
+# Dati pesanti e cache (risiedono su Drive)
 data/
 *.csv
 !results/results_log*.csv
-data/cache/
 *.npy
 
-# Modelli e checkpoint pesanti
+# Modelli e pesi addestrati
 checkpoints/
 *.keras
 *.h5
-*.ckpt*
-*.pt
-*.pth
 
-# IDE / OS
+# Test & Log
+.pytest_cache/
+*.log
+
+# IDE & Sistema Operativo
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-*.swp
 
-# Cartelle temporanee e file esterni
-scratch/
-tmp/
-logs/
-*.log
+# File temporanei e materiali esterni
 *.pdf
+scratch/
 read_data.ipynb
 File csv descriptions.txt
 GUIDA_*.md
-
-# Testing & Coverage
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Ambiente e segreti
-.env
-.env.*
-
-# Windows / OS
-desktop.ini
