@@ -1,4 +1,4 @@
-"""Test di validazione per il Gate dello Step S1 (GUIDA_UNICA §4.2):
+"""Test di validazione della pipeline e dei moduli di base:
 
 1. Verifica determinismo: due generazioni con lo stesso seed producono tensori identici.
 2. Verifica windowing: le shape di output X e Y su dati sintetici corrispondono a quanto atteso.

@@ -36,6 +36,24 @@ checkpoints/
 Thumbs.db
 *.swp
 
-# Cartelle temporanee
+# Cartelle temporanee e file esterni
 scratch/
 tmp/
+logs/
+*.log
+*.pdf
+read_data.ipynb
+File csv descriptions.txt
+GUIDA_*.md
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ambiente e segreti
+.env
+.env.*
+
+# Windows / OS
+desktop.ini

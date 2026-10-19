@@ -1,4 +1,4 @@
-# DL-Quantum – Quantum Dynamics Forecasting (9 CFU)
+# DL-Quantum – Quantum Dynamics Forecasting
 
 Progetto di Deep Learning per la previsione della dinamica quantistica nel modello PXP (10 qubit).
 
@@ -16,19 +16,19 @@ dl-quantum/
 │   ├── results_log.py        # Append su CSV con gestione multi-autore
 │   ├── plots.py              # Grafici standardizzati .jpeg a 300 dpi
 │   └── training.py           # Loop di training ibrido parametrico (TF -> MM -> SS)
-├── tests/                    # Test di integrità e Gate di avanzamento (S1, S2, ...)
-│   └── test_s1_gate.py       # Gate S1 (seeding, shapes, leakage check, metriche)
+├── tests/                    # Test di integrità della pipeline
+│   └── test_s1_gate.py       # Test determinismo, shapes, leakage check e metriche
 ├── notebooks/                # Notebook di analisi ed esperimenti
-│   ├── 01_data.ipynb         # S2: Verifica dati, statistiche e split
-│   ├── 02_windowing.ipynb    # S3: Finestre e controlli di leakage
-│   ├── 03_rnn.ipynb          # S4-S7: Baseline, LSTM diretto e Seq2Seq
-│   ├── 04_transformer.ipynb  # S5-S7: Transformer con Cross-Attention
-│   └── 05_inference.ipynb    # S13: Cella di inferenza rapida per orale
+│   ├── 01_data.ipynb         # Analisi dati, integrità, split e normalizzazione
+│   ├── 02_windowing.ipynb    # Finestre temporali e super-resolution
+│   ├── 03_rnn.ipynb          # Modelli ricorrenti (LSTM / GRU)
+│   ├── 04_transformer.ipynb  # Modelli Transformer (Encoder-Decoder con cross-attention)
+│   └── 05_inference.ipynb    # Pipeline di inferenza rapida e demo
 ├── results/                  # Risultati numerici (log, split_indices.npz)
 ├── figures/                  # Grafici JPEG esportati a 300 dpi
 ├── checkpoints/              # Checkpoint dei modelli addestrati (.keras)
-├── report/                   # Relazione finale (max 10 pagine)
-├── slides/                   # Presentazione per l'orale (5 minuti)
+├── report/                   # Relazione finale
+├── slides/                   # Presentazione per l'orale
 ├── decision_log.md           # Registro decisionale di progetto
 └── requirements.txt          # Dipendenze Python
 ```
@@ -40,7 +40,7 @@ dl-quantum/
    # Windows PowerShell
    .venv\Scripts\Activate.ps1
    ```
-2. **Esecuzione Test Gate S1**:
+2. **Esecuzione Test di Integrità**:
    ```powershell
    .venv\Scripts\pytest tests/test_s1_gate.py -v
    ```
