@@ -194,10 +194,17 @@ def save_split(split: dict[str, np.ndarray], path: str | Path | None = None) -> 
 
 
 def load_split(path: str | Path | None = None) -> dict[str, np.ndarray]:
-    """Carica gli indici congelati di Train, Val e Test dal file .npz."""
+    """Carica gli indici congelati di Train, Val e Test dal file .npz, supportando entrambi i formati di chiavi."""
     path = Path(path) if path else get_paths()["results"] / "split_indices.npz"
     with np.load(path) as f:
-        return {k: f[k] for k in f.files}
+        res = {k: f[k] for k in f.files}
+        # Garantisce compatibilità per chiavi sia corte ('train') che estese ('train_idx')
+        for key in ["train", "val", "test"]:
+            if key not in res and f"{key}_idx" in res:
+                res[key] = res[f"{key}_idx"]
+            if f"{key}_idx" not in res and key in res:
+                res[f"{key}_idx"] = res[key]
+        return res
 
 
 def kfold_splits(
