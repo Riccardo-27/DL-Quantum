@@ -6,7 +6,7 @@ Questo registro traccia le decisioni progettuali, architetturali e metodologiche
 
 ## [2026-10-19] - Setup Iniziale e Struttura di Collaborazione
 
-- **Decisione**: Strutturazione del progetto in una cartella dedicata `dl-quantum` destinata a diventare repository Git privato.
+- **Decisione**: Strutturazione del progetto in una cartella dedicata `dl-quantum` configurata come repository Git pubblico.
 - **Motivazione**: I file pesanti del dataset (`trajectories.csv`, ~464 MB) e le dispense PDF devono rimanere fuori dal versionamento Git per limiti di dimensione di GitHub (100 MB max) e ordine del codice.
 - **Workflow in due**: Moduli condivisi posizionati in `src/`, branch separati con PR su `main` e divisione dei notebook `.ipynb` per evitare merge conflict su file JSON binari.
 - **Ambiente di esecuzione**:
