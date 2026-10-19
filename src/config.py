@@ -1,23 +1,8 @@
-"""Configurazione centrale del progetto DL-Quantum.
+"""Configurazione centralizzata del progetto DL-Quantum.
 
-Tutti gli iperparametri vivono in un unico dizionario piatto (facile da loggare
-riga per riga in ``results_log``). Ogni esperimento parte da ``make_config`` e
-sovrascrive solo le chiavi che cambia.
-
-Percorsi
---------
-Il layout delle cartelle di lavoro e' identico in locale e su Colab::
-
-    <ROOT>/data/trajectories.csv
-    <ROOT>/data/cache/            # .npy derivati dal CSV
-    <ROOT>/results/               # results_log_<autore>.csv, split_indices.npz
-    <ROOT>/figures/               # .jpeg a 300 dpi
-    <ROOT>/checkpoints/           # modelli .keras
-
-``ROOT`` viene risolta in quest'ordine:
-1. variabile d'ambiente ``DLQ_ROOT``;
-2. ``/content/drive/MyDrive/DL-Quantum`` se esiste (Colab con Drive montato);
-3. la root del repository (uso locale).
+Gestisce in un unico dizionario piatto tutti gli iperparametri di riproducibilità,
+dataset, finestre temporali, modelli e addestramento, facilitando il salvataggio
+su log CSV. Gestisce inoltre la risoluzione dinamica dei percorsi (locale e Colab).
 """
 
 from __future__ import annotations
@@ -27,22 +12,22 @@ import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Costanti del dataset (da data/README del professore)
+# Parametri fisici del sistema PXP (10 qubit)
 # ---------------------------------------------------------------------------
 N_QUBITS = 10
-N_MAG = N_QUBITS                              # magnetizzazioni m_1..m_N
-N_CORR = N_QUBITS * (N_QUBITS - 1) // 2       # correlazioni c_ij, i<j  -> 45
-N_FEATURES = N_MAG + N_CORR                   # 55 (colonna tempo esclusa)
-N_TRAJ = 400
-N_POINTS = 1001
-DT = 0.02
-T_FIN = 20.0
+N_MAG = N_QUBITS                              # 10 magnetizzazioni locali m_1..m_10
+N_CORR = N_QUBITS * (N_QUBITS - 1) // 2       # 45 correlazioni c_ij con i < j
+N_FEATURES = N_MAG + N_CORR                   # 55 variabili fisiche osservabili
+N_TRAJ = 400                                  # traiettorie simulate indipendenti
+N_POINTS = 1001                               # istanti temporali per traiettoria
+DT = 0.02                                     # passo di campionamento temporale
+T_FIN = 20.0                                  # orizzonte temporale finale
 
-MAG_SLICE = slice(0, N_MAG)
-CORR_SLICE = slice(N_MAG, N_FEATURES)
+MAG_SLICE = slice(0, N_MAG)                   # indici delle magnetizzazioni: 0..9
+CORR_SLICE = slice(N_MAG, N_FEATURES)         # indici delle correlazioni: 10..54
 
 # ---------------------------------------------------------------------------
-# Iperparametri di default
+# Iperparametri di default per esperimenti e addestramento
 # ---------------------------------------------------------------------------
 DEFAULT_CONFIG: dict = {
     # --- riproducibilita' ---

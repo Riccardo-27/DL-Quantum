@@ -18,10 +18,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.config import N_FEATURES, N_POINTS, N_QUBITS, make_config
-from src.data import corr_pairs, feature_names, make_split
+from src.data import check_quantum_probabilities, corr_pairs, feature_names, kfold_splits, make_split
 from src.metrics import evaluate, per_horizon_mse, per_variable_mse
+from src.results_log import append_result, load_results
 from src.seeding import set_seeds
-from src.stats import summarize
+from src.stats import format_mean_ci, summarize
 from src.windowing import check_no_leakage, decoder_inputs, make_sr_windows, make_windows
 
 
@@ -117,3 +118,61 @@ def test_metrics_and_stats():
     assert stats["ci_half"] > 0
     # Con n=3 t critico è ~4.303
     assert np.isclose(stats["ci_half"], 4.30265 * stats["std"] / np.sqrt(3), atol=1e-3)
+
+
+def test_kfold_splits():
+    indices = np.arange(20)
+    folds = kfold_splits(indices, k=5, seed=42)
+    assert len(folds) == 5
+
+    seen_val = []
+    for train_idx, val_idx in folds:
+        assert len(val_idx) == 4
+        assert len(train_idx) == 16
+        # Nessuna sovrapposizione tra train e val del singolo fold
+        assert len(set(train_idx) & set(val_idx)) == 0
+        seen_val.extend(val_idx.tolist())
+
+    # La validazione copre tutti i 20 elementi esattamente una volta
+    assert sorted(seen_val) == list(range(20))
+
+
+def test_results_logging(tmp_path):
+    log_file = tmp_path / "results_log_test.csv"
+
+    # Primo record
+    rec1 = {"model": "rnn", "val_mse": 0.001, "seeds": [42, 43]}
+    append_result(rec1, path=log_file)
+    assert log_file.exists()
+
+    # Secondo record con colonna aggiuntiva
+    rec2 = {"model": "rnn", "val_mse": 0.0009, "new_metric": 0.99}
+    append_result(rec2, path=log_file)
+
+    # Rilettura
+    df = load_results(tmp_path)
+    assert len(df) == 2
+    assert "val_mse" in df.columns
+    assert "new_metric" in df.columns
+    assert df.iloc[0]["model"] == "rnn"
+
+
+def test_quantum_probabilities():
+    # 1. Stato fisico con magnetizzazioni e correlazioni nulle:
+    # P(s_i, s_j) = 1/4 = 0.25 >= 0 per tutte le 45 coppie
+    zero_state = np.zeros((1, N_FEATURES), dtype=np.float32)
+    res_zero = check_quantum_probabilities(zero_state)
+    assert res_zero["is_physical"] is True
+    assert res_zero["violations_count"] == 0
+    assert np.isclose(res_zero["min_probability"], 0.25)
+
+    # 2. Configurazione non fisica: m1 = 1, m2 = 1, c12 = -1
+    # P(-1, -1) = (1 - 1 - 1 - 1) / 4 = -0.5 < 0 (violazione quantistica)
+    unphysical_state = np.zeros((1, N_FEATURES), dtype=np.float32)
+    unphysical_state[0, 0] = 1.0   # m1
+    unphysical_state[0, 1] = 1.0   # m2
+    unphysical_state[0, 10] = -1.0  # c1_2
+    res_unphys = check_quantum_probabilities(unphysical_state)
+    assert res_unphys["is_physical"] is False
+    assert res_unphys["violations_count"] > 0
+    assert res_unphys["min_probability"] < 0

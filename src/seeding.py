@@ -1,9 +1,4 @@
-"""Riproducibilita': un solo punto in cui si fissano tutti i seed.
-
-Nota: ``PYTHONHASHSEED`` ha effetto solo se impostato *prima* dell'avvio
-dell'interprete. Lo impostiamo comunque (vale per eventuali sottoprocessi) e
-in Colab l'hashing di stringhe non influenza i nostri risultati numerici.
-"""
+"""Gestione centralizzata della riproducibilità numerica (seed e determinismo)."""
 
 from __future__ import annotations
 
@@ -14,11 +9,9 @@ import numpy as np
 
 
 def set_seeds(seed: int, deterministic: bool = True) -> None:
-    """Fissa i seed di ``random``, ``numpy`` e (se installato) TensorFlow.
+    """Fissa i seed di random, numpy e TensorFlow per garantire risultati identici.
 
-    Con ``deterministic=True`` abilita anche il determinismo delle op di TF,
-    necessario per avere risultati identici su GPU (a costo di un po' di
-    velocita').
+    Con deterministic=True attiva il determinismo delle operazioni GPU di TensorFlow.
     """
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)

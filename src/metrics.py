@@ -1,7 +1,4 @@
-"""Metriche globali e disaggregate (richiesta esplicita del professore).
-
-Tutte le funzioni lavorano su array numpy ``(n_win, t_out, 55)``.
-"""
+"""Calcolo metriche globali ed errori disaggregati (per variabile, qubit e orizzonte)."""
 
 from __future__ import annotations
 
@@ -22,29 +19,31 @@ def _check(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[np.ndarray, np.ndarr
 
 
 def mse(y_true, y_pred) -> float:
+    """Mean Squared Error medio complessivo."""
     y_true, y_pred = _check(y_true, y_pred)
     return float(np.mean((y_true - y_pred) ** 2))
 
 
 def mae(y_true, y_pred) -> float:
+    """Mean Absolute Error medio complessivo."""
     y_true, y_pred = _check(y_true, y_pred)
     return float(np.mean(np.abs(y_true - y_pred)))
 
 
 def per_variable_mse(y_true, y_pred) -> np.ndarray:
-    """MSE per ciascuna delle 55 variabili -> ``(n_feat,)``."""
+    """Calcola l'MSE singolarmente per ciascuna delle 55 variabili."""
     y_true, y_pred = _check(y_true, y_pred)
     return np.mean((y_true - y_pred) ** 2, axis=(0, 1))
 
 
 def per_horizon_mse(y_true, y_pred) -> np.ndarray:
-    """MSE per step di orizzonte -> ``(t_out,)``."""
+    """Calcola l'MSE lungo i 40 istanti temporali futuri."""
     y_true, y_pred = _check(y_true, y_pred)
     return np.mean((y_true - y_pred) ** 2, axis=(0, 2))
 
 
 def per_horizon_group_mse(y_true, y_pred) -> dict[str, np.ndarray]:
-    """MSE per orizzonte separato tra magnetizzazioni e correlazioni."""
+    """Separa la curva temporale dell'MSE tra magnetizzazioni (10) e correlazioni (45)."""
     y_true, y_pred = _check(y_true, y_pred)
     se = (y_true - y_pred) ** 2
     return {
@@ -54,15 +53,12 @@ def per_horizon_group_mse(y_true, y_pred) -> dict[str, np.ndarray]:
 
 
 def per_qubit_mse(y_true, y_pred) -> np.ndarray:
-    """MSE delle magnetizzazioni per qubit -> ``(N_QUBITS,)``."""
+    """Calcola l'MSE delle sole magnetizzazioni per i 10 singoli qubit."""
     return per_variable_mse(y_true, y_pred)[MAG_SLICE]
 
 
 def corr_pair_mse_matrix(y_true, y_pred, n_qubits: int = N_QUBITS) -> np.ndarray:
-    """MSE delle correlazioni come matrice simmetrica ``(N, N)`` (diagonale NaN).
-
-    Comoda per una heatmap e per vedere se le coppie lontane sono piu' difficili.
-    """
+    """Costruisce la matrice simmetrica 10x10 degli errori sulle correlazioni a due punti."""
     errs = per_variable_mse(y_true, y_pred)[CORR_SLICE]
     mat = np.full((n_qubits, n_qubits), np.nan)
     for e, (i, j) in zip(errs, corr_pairs(n_qubits)):
@@ -71,7 +67,7 @@ def corr_pair_mse_matrix(y_true, y_pred, n_qubits: int = N_QUBITS) -> np.ndarray
 
 
 def evaluate(y_true, y_pred, prefix: str = "") -> dict[str, float]:
-    """Metriche scalari pronte per ``results_log`` (globali e per gruppo)."""
+    """Calcola un dizionario completo di metriche scalari (MSE, MAE, RMSE, errori disaggregati)."""
     y_true, y_pred = _check(y_true, y_pred)
     err = y_true - y_pred
     se, ae = err**2, np.abs(err)

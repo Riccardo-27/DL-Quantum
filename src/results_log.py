@@ -1,9 +1,4 @@
-"""Log dei risultati in CSV (una riga per evento: epoca o valutazione finale).
-
-Su Drive condiviso due sessioni Colab che scrivono sullo stesso file possono
-sovrascriversi a vicenda: per questo ogni autore scrive sul proprio
-``results_log_<autore>.csv`` e ``load_results`` li unisce in lettura.
-"""
+"""Logging degli esperimenti su CSV con supporto multi-autore su Drive."""
 
 from __future__ import annotations
 
@@ -22,12 +17,11 @@ def log_path(author: str | None = None) -> Path:
 
 
 def _serialize(v):
-    # liste/dict (es. replica_seeds, windows) diventano JSON per stare in una cella
     return json.dumps(v) if isinstance(v, (list, dict, tuple)) else v
 
 
 def append_result(record: dict, path: str | Path | None = None) -> Path:
-    """Aggiunge una riga. Se compaiono colonne nuove, il file viene riallineato."""
+    """Salva una riga di metriche sul CSV dell'autore, serializzando strutture dati e allineando le colonne."""
     path = Path(path) if path else log_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     row = {"timestamp": datetime.now().isoformat(timespec="seconds"), "author": get_author()}
@@ -46,7 +40,7 @@ def append_result(record: dict, path: str | Path | None = None) -> Path:
 
 
 def load_results(results_dir: str | Path | None = None) -> pd.DataFrame:
-    """Unisce tutti i ``results_log_*.csv`` della cartella risultati."""
+    """Unisce tutti i log generati dagli autori in un unico DataFrame complessivo."""
     results_dir = Path(results_dir) if results_dir else get_paths()["results"]
     files = sorted(results_dir.glob("results_log_*.csv"))
     if not files:

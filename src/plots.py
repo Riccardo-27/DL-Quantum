@@ -1,4 +1,4 @@
-"""Grafici: salvataggio sempre in ``.jpeg`` a 300 dpi (regola del professore)."""
+"""Esportazione grafici standardizzati ad alta risoluzione (JPEG >= 300 dpi)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ DPI = 300
 
 
 def save_figure(fig, name: str, subdir: str | None = None, dpi: int = DPI) -> Path:
-    """Salva ``fig`` come ``<figures>/<subdir>/<name>.jpeg`` a ``dpi`` dpi."""
+    """Salva la figura in formato JPEG a risoluzione minima di 300 dpi nella cartella figures/."""
     out_dir = get_paths()["figures"]
     if subdir:
         out_dir = out_dir / subdir
@@ -27,7 +27,7 @@ def save_figure(fig, name: str, subdir: str | None = None, dpi: int = DPI) -> Pa
 
 def plot_trajectory(traj: np.ndarray, features: list[int], dt: float = DT, ax=None,
                     title: str | None = None):
-    """Andamento nel tempo di alcune variabili di una traiettoria ``(T, 55)``."""
+    """Traccia l'evoluzione temporale di variabili selezionate lungo una traiettoria."""
     ax = ax or plt.subplots(figsize=(8, 3))[1]
     names = feature_names()
     t = np.arange(traj.shape[0]) * dt
@@ -42,7 +42,7 @@ def plot_trajectory(traj: np.ndarray, features: list[int], dt: float = DT, ax=No
 
 def plot_window(x: np.ndarray, y: np.ndarray, feature: int, y_pred: np.ndarray | None = None,
                 dt: float = DT, ax=None, title: str | None = None):
-    """Una finestra: input osservato, target e (opzionale) predizione."""
+    """Visualizza una finestra temporale: contesto osservato (input), target futuro ed eventuale predizione."""
     ax = ax or plt.subplots(figsize=(7, 3))[1]
     t_in, t_out = x.shape[0], y.shape[0]
     t_x = np.arange(t_in) * dt

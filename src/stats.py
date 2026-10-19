@@ -1,7 +1,4 @@
-"""Statistiche sulle repliche: media, std e CI 95% con t di Student.
-
-Con n = 3 seed il coefficiente corretto e' t_{0.975, 2} ~= 4.303, non 1.96.
-"""
+"""Statistiche descrittive e intervalli di confidenza al 95% con distribuzione t di Student."""
 
 from __future__ import annotations
 
@@ -11,14 +8,14 @@ from scipy import stats as _st
 
 
 def t_critical(n: int, confidence: float = 0.95) -> float:
-    """Quantile della t di Student con ``n - 1`` gradi di liberta'."""
+    """Quantile critico t con n-1 gradi di libertà per la stima dell'incertezza con pochi campioni."""
     if n < 2:
         return float("nan")
     return float(_st.t.ppf(0.5 + confidence / 2, df=n - 1))
 
 
 def summarize(values, confidence: float = 0.95) -> dict[str, float]:
-    """``{n, mean, std, ci_half, ci_low, ci_high}`` con std campionaria (ddof=1)."""
+    """Calcola media, deviazione standard campionaria (ddof=1) e semi-ampiezza dell'IC al 95%."""
     v = np.asarray(values, dtype=np.float64)
     v = v[~np.isnan(v)]
     n = v.size
@@ -36,7 +33,7 @@ def summarize(values, confidence: float = 0.95) -> dict[str, float]:
 
 
 def format_mean_ci(values, digits: int = 4, confidence: float = 0.95) -> str:
-    """Stringa ``'0.0123 ± 0.0011'`` per Table 1."""
+    """Formatta il risultato per le tabelle di riepilogo nella forma: media ± incertezza."""
     s = summarize(values, confidence)
     return f"{s['mean']:.{digits}f} ± {s['ci_half']:.{digits}f}"
 
@@ -47,7 +44,7 @@ def summarize_df(
     metric_cols: list[str],
     confidence: float = 0.95,
 ) -> pd.DataFrame:
-    """Raggruppa (es. per modello/HP/finestra) e calcola media e CI per metrica."""
+    """Aggrega i risultati degli esperimenti per gruppo (modello, iperparametri) calcolando media e IC."""
     rows = []
     for keys, g in df.groupby(group_cols, dropna=False):
         keys = keys if isinstance(keys, tuple) else (keys,)
