@@ -1,0 +1,41 @@
+# Python / Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Jupyter / Colab
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# Dati pesanti e cache
+data/
+*.csv
+!results/results_log*.csv
+data/cache/
+*.npy
+
+# Modelli e checkpoint pesanti
+checkpoints/
+*.keras
+*.h5
+*.ckpt*
+*.pt
+*.pth
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Cartelle temporanee
+scratch/
+tmp/
