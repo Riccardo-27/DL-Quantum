@@ -98,34 +98,24 @@ dl-quantum/
 
 ---
 
-## ☁️ Esecuzione su Google Colab (GPU T4)
+## ☁️ Esecuzione su Google Colab e Versionamento Multi-Utente
 
-Gli addestramenti pesanti e le sessioni di validazione multi-seed vengono eseguiti su Google Colab con acceleratore GPU (T4):
+Gli addestramenti pesanti e le sessioni di validazione vengono eseguiti su Google Colab con acceleratore GPU (T4).
 
-1. **Struttura Dati su Google Drive**:
-   - Posizionare `trajectories.csv` (~464 MB) nel percorso standard di Drive: `MyDrive/DL-Quantum/data/trajectories.csv`.
-   - La cache binaria `data/cache/trajectories.npy` e le partizioni `results/split_indices.npz` vengono generate e lette automaticamente.
+### 1. Differenziazione Automatica Autore e Branch tramite Segreti Colab
+Per evitare conflitti di branch e sovrascritture su Google Drive quando entrambi i membri lavorano sullo stesso repository:
+* **Ernesto**: aggiunge nel menu laterale sinistro di Colab (icona **Chiave 🔑 Segreti**) il segreto **`GIT_E_TOKEN`** contenente il proprio Personal Access Token GitHub.
+  - Il notebook allinea automaticamente il repository sul branch **`dev-ernesto`**.
+  - I log sperimentali vengono scritti automaticamente su `results/results_log_ernesto.csv`.
+  - La cella finale di sincronizzazione effettua il push automatico su `origin dev-ernesto`.
+* **Riccardo**: aggiunge nel menu laterale di Colab il segreto **`GIT_R_TOKEN`**.
+  - Il notebook allinea automaticamente il repository sul branch **`dev-riccardo`**.
+  - I log sperimentali vengono scritti su `results/results_log_riccardo.csv`.
+  - La cella finale di sincronizzazione effettua il push automatico su `origin dev-riccardo`.
 
-2. **Cella Iniziale di Setup (Cella 0)**:
-   ```python
-   # 1. Montaggio di Google Drive
-   from google.colab import drive
-   drive.mount('/content/drive')
-
-   # 2. Configurazione del sys.path verso il repository
-   import sys
-   from pathlib import Path
-   REPO_PATH = Path('/content/drive/MyDrive/DL-Quantum')
-   if str(REPO_PATH) not in sys.path:
-       sys.path.insert(0, str(REPO_PATH))
-
-   # 3. Determinismo e verifica GPU
-   from src.seeding import set_seeds
-   set_seeds(42)
-
-   import tensorflow as tf
-   print("Dispositivi GPU rilevati:", tf.config.list_physical_devices('GPU'))
-   ```
+### 2. Struttura Dati su Google Drive
+* Posizionare `trajectories.csv` (~464 MB) nel percorso standard di Drive: `MyDrive/DL-Quantum/data/trajectories.csv`.
+* La cache binaria `data/cache/trajectories.npy` e le partizioni `results/split_indices.npz` vengono caricate e gestite automaticamente senza copie ridondanti.
 
 ---
 
@@ -134,4 +124,5 @@ Gli addestramenti pesanti e le sessioni di validazione multi-seed vengono esegui
 * **Repository pubblico**: Codice sorgente modulare in `src/`, notebook numerati e log numerici (`results/results_log_*.csv`) sono versionati e tracciati.
 * **Separazione dati e codice**: Come definito in `.gitignore`, i file di grandi dimensioni (`trajectories.csv`, array binari `.npy` e checkpoint `.keras`) risiedono esclusivamente su Google Drive per non appesantire la cronologia Git.
 * **Logging concorrente**: Ciascun autore scrive su un proprio file di log dedicato (`results/results_log_<autore>.csv`), aggregabile automaticamente in fase di confronto tramite `src/results_log.py` senza conflitti di merge.
-* **Branching Model**: Sviluppo attivo su branch dedicati (`dev-ernesto`) con unione su `main` tramite Pull Request.
+* **Branching Model**: Sviluppo attivo isolato sui due branch (`dev-ernesto` e `dev-riccardo`) con allineamento e unione su `main` tramite Pull Request.
+
