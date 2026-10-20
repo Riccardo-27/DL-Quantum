@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 # Aggiunge src al path
 ROOT = Path(__file__).resolve().parents[1]
@@ -191,3 +192,83 @@ def test_quantum_probabilities():
     assert res_unphys["is_physical"] is False
     assert res_unphys["violations_count"] > 0
     assert res_unphys["min_probability"] < 0
+
+
+@pytest.mark.parametrize("cell", ["lstm", "gru"])
+def test_rnn_models(cell):
+    pytest.importorskip("tensorflow")
+    from src.models_rnn import RNNSeq2Seq, build_rnn_direct, build_rnn_from_config
+
+    set_seeds(42)
+    rng = np.random.default_rng(0)
+    x = rng.uniform(-1, 1, (4, 10, N_FEATURES)).astype(np.float32)
+    y = rng.uniform(-1, 1, (4, 40, N_FEATURES)).astype(np.float32)
+
+    # M1 diretta: shape corretta e uscita confinata in [-1, 1] dalla tanh
+    m1 = build_rnn_direct(t_out=40, t_in=10, units=8, n_layers=2, cell=cell)
+    y1 = np.asarray(m1(x))
+    assert y1.shape == (4, 40, N_FEATURES)
+    assert np.all(np.abs(y1) <= 1.0)
+
+    # M2 seq2seq: teacher forcing e free-running
+    m2 = RNNSeq2Seq(t_out=40, units=8, n_layers=2, cell=cell)
+    assert np.asarray(m2((x, decoder_inputs(x, y)))).shape == (4, 40, N_FEATURES)
+    y_fr = np.asarray(m2.free_running(x))
+    assert y_fr.shape == (4, 40, N_FEATURES)
+
+    # Equivalenza: se il decoder riceve come input le sue stesse predizioni,
+    # il teacher forcing deve riprodurre esattamente il free-running.
+    y_tf_self = np.asarray(m2((x, decoder_inputs(x, y_fr))))
+    np.testing.assert_allclose(y_tf_self, y_fr, atol=1e-5)
+    np.testing.assert_allclose(m2.predict_free_running(x, batch_size=3), y_fr, atol=1e-5)
+
+    # Factory da config
+    for model_name in ("rnn_direct", "rnn"):
+        cfg = make_config(model=model_name, rnn_units=8, rnn_cell=cell)
+        assert build_rnn_from_config(cfg, t_in=10).count_params() > 0
+
+
+def test_training_helpers():
+    pytest.importorskip("tensorflow")
+    from src.training import mask_timesteps, mix_decoder_inputs, ss_probability
+
+    assert ss_probability(0, 5, 0.0, 0.5) == 0.0
+    assert ss_probability(4, 5, 0.0, 0.5) == 0.5
+    assert ss_probability(0, 1, 0.0, 0.5) == 0.5
+
+    rng = np.random.default_rng(0)
+    x = np.ones((50, 10, N_FEATURES), dtype=np.float32)
+    xm = mask_timesteps(x, 0.5, rng, protect=-1)
+    assert np.all(xm[:, -1] == 1.0)                       # ultimo istante mai mascherato
+    assert 0.3 < (xm[:, :-1, 0] == 0).mean() < 0.7        # circa meta' degli altri azzerati
+    assert np.all((xm == 0).all(axis=2) | (xm == 1).all(axis=2))  # maschera per istante intero
+
+    y = np.zeros((50, 40, N_FEATURES), dtype=np.float32)
+    y_hat = np.full_like(y, 0.5)
+    np.testing.assert_array_equal(mix_decoder_inputs(x, y, y_hat, 0.0, rng), decoder_inputs(x, y))
+    np.testing.assert_array_equal(mix_decoder_inputs(x, y, y_hat, 1.0, rng), decoder_inputs(x, y_hat))
+
+
+@pytest.mark.parametrize("model_name", ["rnn_direct", "rnn"])
+def test_train_hybrid_runs_and_is_deterministic(model_name):
+    pytest.importorskip("tensorflow")
+    from src.models_rnn import build_rnn_from_config
+    from src.training import train_hybrid
+
+    rng = np.random.default_rng(1)
+    X = rng.uniform(-1, 1, (32, 10, N_FEATURES)).astype(np.float32)
+    Y = rng.uniform(-1, 1, (32, 40, N_FEATURES)).astype(np.float32)
+    cfg = make_config(model=model_name, rnn_units=8, epochs_tf=1, epochs_mm=1, epochs_ss=2,
+                      batch_size=16)
+
+    def run():
+        set_seeds(42)
+        model = build_rnn_from_config(cfg, t_in=10)
+        return train_hybrid(model, X, Y, X[:8], Y[:8], cfg, verbose=0)
+
+    h1, h2 = run(), run()
+    assert [r["phase"] for r in h1] == ["tf", "mm", "ss", "ss"]
+    assert all(np.isfinite(r["loss"]) and np.isfinite(r["val_mse"]) for r in h1)
+    assert [r["ss_p"] for r in h1][-2:] == [0.0, 0.5]
+    assert [r["loss"] for r in h1] == [r["loss"] for r in h2]
+    assert [r["val_mse"] for r in h1] == [r["val_mse"] for r in h2]

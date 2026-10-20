@@ -59,6 +59,7 @@ DEFAULT_CONFIG: dict = {
     "model": "rnn",                   # "rnn_direct" | "rnn" | "transformer"
     "rnn_units": 64,
     "rnn_layers": 1,
+    "rnn_cell": "lstm",               # "lstm" | "gru"
     "transformer_d_model": 64,
     "transformer_heads": 4,
     "transformer_d_ff": 128,
