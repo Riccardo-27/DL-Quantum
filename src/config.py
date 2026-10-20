@@ -47,6 +47,7 @@ DEFAULT_CONFIG: dict = {
     "stride": 10,
     "windows": {"short": 10, "long": 20},
     "t_in_grid": [5, 10, 20, 40],     # sfida 1
+    "align_t_in": 40,                 # target allineati tra i T_in (None = finestre non allineate)
     "sr_factor": 2,                   # sfida 2: input sottocampionato x2
     "sr_t_in": 20,                    # punti osservati in input (super-res)
 

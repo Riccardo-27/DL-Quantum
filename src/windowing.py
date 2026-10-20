@@ -23,8 +23,13 @@ def make_windows(
     t_in: int,
     t_out: int,
     stride: int,
+    align_t_in: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Estrae finestre temporali a frequenza nativa: X (input osservato) e Y (target futuro).
+
+    Con ``align_t_in`` (>= t_in) le finestre vengono traslate di ``align_t_in - t_in`` passi,
+    così che il target inizi sempre agli istanti ``align_t_in + k * stride``: finestre con
+    T_in diversi condividono esattamente gli stessi target Y (confronto equo, sfida 1).
 
     Restituisce:
     - X: tensore (n_finestre, t_in, 55)
@@ -33,7 +38,13 @@ def make_windows(
     """
     span = t_in + t_out
     n_points, n_feat = data.shape[1], data.shape[2]
-    starts = window_starts(n_points, span, stride)
+    if align_t_in is None:
+        starts = window_starts(n_points, span, stride)
+    else:
+        if align_t_in < t_in:
+            raise ValueError(f"align_t_in ({align_t_in}) deve essere >= t_in ({t_in})")
+        offset = align_t_in - t_in
+        starts = offset + window_starts(n_points - offset, span, stride)
 
     xs, ys, metas = [], [], []
     for tid in np.asarray(idx):
@@ -82,6 +93,11 @@ def make_sr_windows(
     if return_dense_input:
         return X, Y, meta, np.ascontiguousarray(np.concatenate(xds), dtype=np.float32)
     return X, Y, meta
+
+
+def target_time_index(meta: np.ndarray, t_in: int, t_out: int) -> np.ndarray:
+    """Indici temporali assoluti (n_finestre, t_out) dei punti target di ciascuna finestra."""
+    return meta[:, 1:2] + t_in + np.arange(t_out)[None, :]
 
 
 def decoder_inputs(X: np.ndarray, Y: np.ndarray) -> np.ndarray:

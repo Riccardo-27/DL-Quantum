@@ -55,3 +55,17 @@ Questo registro traccia le decisioni progettuali, architetturali e metodologiche
   - *Motivazione fisica*: Le magnetizzazioni e le correlazioni quantistiche sono valori di aspettazione di operatori di Pauli, vincolati per definizione a $[-1, 1]$. L'attivazione `tanh` rispetta per costruzione il dominio fisico, prevenendo estrapolazioni non fisiche e drift a lungo termine in inferenza ricorsiva (free-running).
   - *Preservazione della scala per i Transformer (M3/M4)*: Lo z-score per-feature riscalerebbe artificialmente le correlazioni a lungo raggio quasi piatte (es. oscillanti tra $0.01$ e $0.05$), amplificandone il rumore di fondo e alterando i prodotti scalari $\mathbf{Q}\mathbf{K}^T$ nei meccanismi di attenzione. I dati grezzi preservano invece la fedele gerarchia di ampiezza fisica tra le 55 osservabili.
   - Configurazione confermata: `CFG["normalization"] = "none"` e `CFG["output_activation"] = "tanh"` in `src/config.py`.
+
+---
+
+## [2026-10-20] - Finestrature Temporali, Allineamento Target (Sfida 1) e Super-Risoluzione (Sfida 2)
+
+- **Decisione**: Fissaggio delle due finestrature standard `short` ($T_{in}=10 \to T_{out}=40$) e `long` ($T_{in}=20 \to T_{out}=40$) con $\text{stride}=10$.
+- **Motivazione**: Mantenere costante l'orizzonte futuro $T_{out} = 40$ ($0.80$ unità fisiche) consente un confronto pulito in cui l'unica variabile indipendente tra `short` e `long` è la lunghezza della memoria passata osservata.
+- **Decisione**: Introduzione dell'allineamento target `align_t_in = 40` per la griglia $T_{in} \in \{5, 10, 20, 40\}$ (Sfida 1).
+- **Motivazione**: Senza allineamento, le finestre con $T_{in}$ corto valuterebbero la dinamica transiente iniziale ($t \in [0.10, 0.90]$), mentre quelle con $T_{in}=40$ valuterebbero regimi temporali più tardivi ($t \in [0.80, 1.60]$), introducendo un forte bias di confronto. Con `align_t_in=40`, tutti i $T_{in}$ condividono rigorosamente lo stesso identico set di target $Y$, garantendo una valutazione statistica impeccabile.
+- **Decisione**: Generazione in-memory vettorizzata con `numpy.lib.stride_tricks.sliding_window_view`.
+- **Motivazione**: L'estrazione dell'intero dataset richiede solo ~330 ms in RAM per 26.880 finestre. È stato scartato il salvataggio persistente su disco, che avrebbe sprecato oltre 500 MB di file ridondanti senza alcun beneficio prestazionale tangibile.
+- **Decisione**: Subsampling $\times 2$ continuo per la Super-Risoluzione (Sfida 2).
+- **Motivazione**: Campionando $T_{in} = 20$ punti radi a $\Delta t = 0.04$, il contesto copre uno span nativo continuo di 39 step. La funzione `make_sr_windows` estrae contestualmente il segnale continuo denso a $\Delta t = 0.02$, abilitando la visualizzazione e la validazione diretta del super-risolutore.
+

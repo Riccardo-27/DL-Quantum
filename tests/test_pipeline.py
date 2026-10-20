@@ -75,6 +75,21 @@ def test_sr_windows():
     assert Y.shape[1] == t_out
 
 
+def test_aligned_windows_share_targets():
+    dummy_data = np.random.randn(3, 1001, 55).astype(np.float32)
+    idx = np.array([0, 2])
+    ys = {}
+    for t_in in (5, 10, 20, 40):
+        X, Y, meta = make_windows(dummy_data, idx, t_in=t_in, t_out=40, stride=10, align_t_in=40)
+        assert X.shape[1] == t_in
+        # Ogni finestra resta dentro la traiettoria e il target parte sempre da 40 + k*10
+        assert np.all(meta[:, 1] + t_in + 40 <= 1001)
+        assert np.all((meta[:, 1] + t_in - 40) % 10 == 0)
+        ys[t_in] = Y
+    for t_in in (5, 10, 20):
+        np.testing.assert_array_equal(ys[t_in], ys[40])
+
+
 def test_split_and_no_leakage():
     split = make_split(n_traj=400, n_train=280, n_val=60, n_test=60, seed=42)
     assert len(split["train"]) == 280
