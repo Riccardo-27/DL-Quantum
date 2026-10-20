@@ -1,8 +1,9 @@
 """Configurazione centralizzata del progetto DL-Quantum.
 
-Gestisce in un unico dizionario piatto tutti gli iperparametri di riproducibilità,
-dataset, finestre temporali, modelli e addestramento, facilitando il salvataggio
-su log CSV. Gestisce inoltre la risoluzione dinamica dei percorsi (locale e Colab).
+Gestisce in un unico dizionario piatto (DEFAULT_CONFIG) tutti i parametri fisici,
+le impostazioni di riproducibilità numerica, le dimensioni delle finestre temporali,
+le architetture dei modelli e gli iperparametri di addestramento.
+Risolve inoltre in modo dinamico i percorsi tra ambiente locale e Google Drive.
 """
 
 from __future__ import annotations
@@ -12,83 +13,84 @@ import os
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Parametri fisici del sistema PXP (10 qubit)
+# Parametri fisici del sistema PXP (catena unidimensionale a 10 qubit)
 # ---------------------------------------------------------------------------
-N_QUBITS = 10
-N_MAG = N_QUBITS                              # 10 magnetizzazioni locali m_1..m_10
-N_CORR = N_QUBITS * (N_QUBITS - 1) // 2       # 45 correlazioni c_ij con i < j
-N_FEATURES = N_MAG + N_CORR                   # 55 variabili fisiche osservabili
-N_TRAJ = 400                                  # traiettorie simulate indipendenti
-N_POINTS = 1001                               # istanti temporali per traiettoria
-DT = 0.02                                     # passo di campionamento temporale
-T_FIN = 20.0                                  # orizzonte temporale finale
+N_QUBITS = 10                                 # Numero di atomi di Rydberg neutri
+N_MAG = N_QUBITS                              # 10 magnetizzazioni locali: <sigma_z^i> (i=1..10)
+N_CORR = N_QUBITS * (N_QUBITS - 1) // 2       # 45 correlazioni a due corpi: <sigma_z^i sigma_z^j> (i < j)
+N_FEATURES = N_MAG + N_CORR                   # 55 variabili fisiche osservabili complessive
+N_TRAJ = 400                                  # Traiettorie quantistiche simulate indipendenti
+N_POINTS = 1001                               # Istanti temporali campionati per ciascuna traiettoria
+DT = 0.02                                     # Passo temporale di campionamento (delta_t = 0.02)
+T_FIN = 20.0                                  # Orizzonte temporale finale della simulazione (t in [0, 20])
 
-MAG_SLICE = slice(0, N_MAG)                   # indici delle magnetizzazioni: 0..9
-CORR_SLICE = slice(N_MAG, N_FEATURES)         # indici delle correlazioni: 10..54
+# Slice NumPy standard per estrarre le sotto-matrici di osservabili
+MAG_SLICE = slice(0, N_MAG)                   # Indici delle magnetizzazioni: 0..9
+CORR_SLICE = slice(N_MAG, N_FEATURES)         # Indici delle correlazioni connesse: 10..54
 
 # ---------------------------------------------------------------------------
-# Iperparametri di default per esperimenti e addestramento
+# Iperparametri di default per esperimenti, architetture e addestramento
 # ---------------------------------------------------------------------------
 DEFAULT_CONFIG: dict = {
-    # --- riproducibilita' ---
-    "seed": 42,                       # seed del singolo run
-    "split_seed": 42,                 # seed dello split (NON cambiarlo mai)
-    "replica_seeds": [42, 43, 44],
+    # --- Riproducibilità e Repliche Statistiche ---
+    "seed": 42,                               # Seed del singolo run
+    "split_seed": 42,                         # Seed per il partizionamento delle traiettorie (congelato)
+    "replica_seeds": [42, 43, 44],            # Terzetto di seed per la validazione t di Student
 
-    # --- split per traiettoria ---
-    "n_train": 280,
-    "n_val": 60,
-    "n_test": 60,
-    "cv_folds": 5,
+    # --- Partizionamento su Base Traiettoria ---
+    "n_train": 280,                           # 70% traiettorie di training (280)
+    "n_val": 60,                              # 15% traiettorie di validazione (60)
+    "n_test": 60,                             # 15% traiettorie di test finale (60)
+    "cv_folds": 5,                            # Numero di fold per eventuale cross-validation
 
-    # --- finestre ---
-    "t_in": 10,
-    "t_out": 40,
-    "stride": 10,
-    "windows": {"short": 10, "long": 20},
-    "t_in_grid": [5, 10, 20, 40],     # sfida 1
-    "align_t_in": 40,                 # target allineati tra i T_in (None = finestre non allineate)
-    "sr_factor": 2,                   # sfida 2: input sottocampionato x2
-    "sr_t_in": 20,                    # punti osservati in input (super-res)
+    # --- Finestrature Temporali ---
+    "t_in": 10,                               # Contesto passato osservato standard (0.20 s)
+    "t_out": 40,                              # Orizzonte futuro previsto (0.80 s)
+    "stride": 10,                             # Passo di avanzamento della finestra scorrevole
+    "windows": {"short": 10, "long": 20},     # Finestre standard di benchmark
+    "t_in_grid": [5, 10, 20, 40],             # Griglia della memoria passata per la Sfida 1
+    "align_t_in": 40,                         # Allineamento dei target per confronto equo nella Sfida 1
+    "sr_factor": 2,                           # Fattore di subsampling temporale (x2) per la Sfida 2
+    "sr_t_in": 20,                            # Punti radi osservati in input per la super-risoluzione
 
-    # --- preprocessing ---
-    "normalization": "none",          # "none" | "zscore"
-    "output_activation": "tanh",
+    # --- Preprocessing e Vincoli Fisici ---
+    "normalization": "none",                  # Dati grezzi non riscalati per preservare le gerarchie fisiche
+    "output_activation": "tanh",              # Attivazione tanh per vincolare l'output al range [-1, 1]
 
-    # --- modello ---
-    "model": "rnn",                   # "rnn_direct" | "rnn" | "transformer"
-    "rnn_units": 64,
-    "rnn_layers": 1,
-    "rnn_cell": "lstm",               # "lstm" | "gru"
-    "transformer_d_model": 64,
-    "transformer_heads": 4,
-    "transformer_d_ff": 128,
-    "transformer_layers": 2,
-    "dropout": 0.0,
+    # --- Architetture dei Modelli ---
+    "model": "rnn",                           # Famiglia: 'rnn_direct' (M1), 'rnn' (M2), 'transformer'
+    "rnn_units": 64,                          # Neuroni nello stato nascosto delle celle ricorrenti
+    "rnn_layers": 1,                          # Numero di layer ricorrenti stacked
+    "rnn_cell": "lstm",                       # Cella ricorrente: 'lstm' o 'gru'
+    "transformer_d_model": 64,                # Dimensione dello spazio di embedding dell'attenzione
+    "transformer_heads": 4,                   # Numero di teste di Multi-Head Attention
+    "transformer_d_ff": 128,                  # Dimensione dello strato Feed-Forward intermedio
+    "transformer_layers": 2,                  # Numero di blocchi Transformer impilati
+    "dropout": 0.0,                           # Tasso di regolarizzazione dropout
 
-    # --- train loop ibrido (TF -> MM -> SS) ---
-    "epochs_tf": 10,
-    "epochs_mm": 10,
-    "epochs_ss": 5,
-    "mask_ratio": 0.15,
-    "ss_p_start": 0.0,
-    "ss_p_end": 0.5,
-    "batch_size": 64,
-    "lr": 1e-3,
-    "optimizer": "adam",
+    # --- Train Loop Ibrido (TF -> MM -> SS) ---
+    "epochs_tf": 10,                          # Epoche in Teacher Forcing (fase 1)
+    "epochs_mm": 10,                          # Epoche in Masked Modeling (fase 2)
+    "epochs_ss": 5,                           # Epoche in Scheduled Sampling (fase 3)
+    "mask_ratio": 0.15,                       # Frazione di timestep azzerati in fase MM (15%)
+    "ss_p_start": 0.0,                        # Probabilità iniziale di campionamento predizioni in SS
+    "ss_p_end": 0.5,                          # Probabilità finale di campionamento predizioni in SS
+    "batch_size": 64,                         # Dimensione del mini-batch per gradiente stocastico
+    "lr": 1e-3,                               # Learning rate iniziale per l'ottimizzatore
+    "optimizer": "adam",                      # Algoritmo di ottimizzazione (Adam)
 
-    # --- bookkeeping ---
-    "run_name": None,
-    "hp_name": None,                  # "HP1" | "HP2" | "HP3"
-    "window_name": None,              # "short" | "long" | ...
+    # --- Bookkeeping e Metadati ---
+    "run_name": None,                         # Nome identificativo univoco del run
+    "hp_name": None,                          # Configurazione iperparametri: 'HP1', 'HP2', 'HP3'
+    "window_name": None,                      # Nome della finestra: 'short', 'long', ecc.
 }
 
 
 def make_config(**overrides) -> dict:
-    """Restituisce una copia della config di default con ``overrides`` applicati.
+    """Restituisce una copia deep della configurazione predefinita con i parametri specificati sovrascritti.
 
-    Solleva ``KeyError`` per chiavi sconosciute, cosi' un refuso
-    (es. ``learning_rate`` invece di ``lr``) non passa inosservato.
+    Solleva un KeyError esplicito se viene passata una chiave non prevista in DEFAULT_CONFIG,
+    prevenendo refusi silenziosi (ad es. 'learning_rate' invece di 'lr').
     """
     cfg = copy.deepcopy(DEFAULT_CONFIG)
     unknown = set(overrides) - set(cfg)
@@ -99,13 +101,14 @@ def make_config(**overrides) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Percorsi
+# Risoluzione dinamica dei percorsi (Locale vs Google Drive Colab)
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COLAB_DRIVE_ROOT = Path("/content/drive/MyDrive/DL-Quantum")
 
 
 def get_root() -> Path:
+    """Individua in modo robusto la radice del repository sia su Google Drive che in locale."""
     env = os.environ.get("DLQ_ROOT")
     if env:
         return Path(env)
@@ -120,7 +123,7 @@ def get_root() -> Path:
 
 
 def find_data_csv(root: Path) -> Path:
-    """Individua trajectories.csv in modo robusto (utile con cartelle condivise su Drive)."""
+    """Localizza il file pesante trajectories.csv testando i pattern di percorso standard su Drive e locale."""
     env = os.environ.get("DLQ_DATA_CSV")
     if env:
         p = Path(env)
@@ -140,7 +143,7 @@ def find_data_csv(root: Path) -> Path:
         if c.exists():
             return c
 
-    # Se siamo su Colab, ricerca rapida in MyDrive o cartelle condivise
+    # Ricerca euristica su Google Drive nel caso la cartella condivisa abbia un nome personalizzato
     drive_root = Path("/content/drive/MyDrive")
     if drive_root.exists():
         found = list(drive_root.glob("**/trajectories.csv"))
@@ -151,7 +154,11 @@ def find_data_csv(root: Path) -> Path:
 
 
 def get_paths(create: bool = True) -> dict[str, Path]:
-    """Dizionario dei percorsi di lavoro. Con ``create=True`` crea le cartelle."""
+    """Costruisce il dizionario dei percorsi di lavoro (root, csv, cache, results, figures, checkpoints).
+
+    Parametri:
+        create: Se True, crea automaticamente le directory di output su disco se non ancora presenti.
+    """
     root = get_root()
     paths = {
         "root": root,
@@ -168,5 +175,5 @@ def get_paths(create: bool = True) -> dict[str, Path]:
 
 
 def get_author() -> str:
-    """Nome breve di chi lancia il run (usato per separare i log su Drive)."""
+    """Restituisce il nome dell'autore attivo (es. 'ernesto' o 'riccardo') per il logging concorrente."""
     return os.environ.get("DLQ_AUTHOR", "unknown")

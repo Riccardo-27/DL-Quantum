@@ -1,4 +1,12 @@
-"""Lettura, validazione e partizionamento del dataset di traiettorie quantistiche."""
+"""Lettura, validazione e partizionamento del dataset di traiettorie quantistiche.
+
+Gestisce la pipeline dei dati grezzi dal file CSV originale (400.400 righe x 56 colonne, ~464 MB):
+- Mappatura delle 55 variabili quantistiche fisiche (10 magnetizzazioni locali + 45 correlazioni a due corpi).
+- Verifiche di integrità: range fisico [-1, 1], assenza di NaN, consistenza della griglia temporale (dt=0.02).
+- Validazione delle probabilità quantistiche binarie congiunte P(s_i, s_j) >= 0 per verificare la natura fisica dello stato.
+- Generazione e riutilizzo della cache binaria float32 ('data/cache/trajectories.npy', 88 MB) per letture in 0.14s.
+- Partizionamento per traiettoria e congelamento in 'results/split_indices.npz' (280 Train, 60 Val, 60 Test).
+"""
 
 from __future__ import annotations
 
@@ -15,12 +23,15 @@ from .config import DT, N_FEATURES, N_POINTS, N_QUBITS, N_TRAJ, get_paths
 
 
 def corr_pairs(n_qubits: int = N_QUBITS) -> list[tuple[int, int]]:
-    """Genera le 45 coppie (i, j) con i < j ordinate secondo le colonne del dataset."""
+    """Genera le 45 coppie (i, j) con 1 <= i < j <= 10 corrispondenti all'ordinamento delle colonne nel dataset."""
     return [(i, j) for i in range(1, n_qubits + 1) for j in range(i + 1, n_qubits + 1)]
 
 
 def feature_names(n_qubits: int = N_QUBITS) -> list[str]:
-    """Restituisce i 55 nomi delle variabili (10 magnetizzazioni e 45 correlazioni)."""
+    """Restituisce la lista ordinata dei 55 nomi delle variabili fisiche:
+    - 10 magnetizzazioni locali: 'm1'..'m10'
+    - 45 correlazioni connesse a due punti: 'c1_2'..'c9_10'
+    """
     mags = [f"m{i}" for i in range(1, n_qubits + 1)]
     corrs = [f"c{i}_{j}" for i, j in corr_pairs(n_qubits)]
     return mags + corrs
@@ -32,7 +43,7 @@ def feature_names(n_qubits: int = N_QUBITS) -> list[str]:
 
 
 def load_raw_csv(path: str | Path) -> pd.DataFrame:
-    """Carica il file CSV grezzo senza header (400400 righe x 56 colonne)."""
+    """Carica il file CSV grezzo senza intestazione (400.400 righe x 56 colonne: tempo + 55 feature)."""
     return pd.read_csv(path, header=None, index_col=False)
 
 
@@ -43,7 +54,14 @@ def validate_raw(
     dt: float = DT,
     atol: float = 1e-6,
 ) -> dict:
-    """Verifica l'integrità del dataset: dimensioni, assenza di NaN, griglia temporale e range fisici."""
+    """Esegue un controllo diagnostico completo sul DataFrame grezzo.
+
+    Verifica:
+    1. Dimensioni attese: 400.400 righe (400 traiettorie * 1001 punti) e 56 colonne.
+    2. Assenza totale di valori mancanti (NaN o nulli).
+    3. Esatta scansione temporale: t che riparte da 0.0 per 400 volte con passo costante dt=0.02.
+    4. Confinamento di tutte le 55 variabili nell'intervallo fisico unitario [-1, 1].
+    """
     report: dict = {}
     n_cols_expected = 1 + N_FEATURES
     report["shape"] = df.shape
@@ -79,11 +97,17 @@ def validate_raw(
 def check_quantum_probabilities(
     data: np.ndarray, n_qubits: int = N_QUBITS, atol: float = 1e-5
 ) -> dict[str, float | int | bool]:
-    """Verifica che le probabilità congiunte a due corpi P(s_i, s_j) siano non-negative (>= 0).
+    """Verifica che le probabilità quantistiche congiunte a due corpi P(s_i, s_j) siano semi-definite positive (>= 0).
 
-    Applicabile sia ai dati reali che alle predizioni dei modelli (array con shape (..., 55)).
-    Per ogni coppia i < j e per ciascuna delle 4 configurazioni di spin:
-        P(s_i, s_j) = (1 + s_i * m_i + s_j * m_j + s_i * s_j * c_ij) / 4 >= 0
+    Per ogni coppia di qubit i < j e per ciascuna delle 4 configurazioni di spin binario (s_i, s_j in {-1, +1}):
+        P(s_i, s_j) = [1 + s_i * <sigma_z^i> + s_j * <sigma_z^j> + s_i * s_j * <sigma_z^i sigma_z^j>] / 4
+    Uno stato fisico quantistico ammissibile impone P(s_i, s_j) >= 0 per tutte le coppie.
+    Può essere applicata sia ai dati reali simulati che alle predizioni dei modelli (shape (..., 55)).
+
+    Parametri:
+        data: Array o tensore contenente le 55 feature nell'ultimo asse.
+        n_qubits: Numero di atomi del reticolo (10).
+        atol: Tolleranza numerica per errori di arrotondamento in virgola mobile.
     """
     flat = np.asarray(data, dtype=np.float64).reshape(-1, N_FEATURES)
     mags = flat[:, :n_qubits]
@@ -119,13 +143,13 @@ def check_quantum_probabilities(
 
 
 def to_array(df: pd.DataFrame, n_points: int = N_POINTS) -> np.ndarray:
-    """Rimuove la colonna tempo e restituisce il tensore 3D (400, 1001, 55) in float32."""
+    """Rimuove la prima colonna temporale e restituisce il tensore strutturato 3D (400, 1001, 55) in float32."""
     values = df.iloc[:, 1:].to_numpy(dtype=np.float32)
     return values.reshape(-1, n_points, values.shape[1])
 
 
 def feature_stats(data: np.ndarray) -> pd.DataFrame:
-    """Calcola statistiche descrittive (min, max, media, deviazione standard) per ogni variabile."""
+    """Calcola statistiche descrittive (minimo, massimo, media, deviazione standard) per ciascuna delle 55 feature."""
     flat = data.reshape(-1, data.shape[-1])
     return pd.DataFrame(
         {
@@ -143,7 +167,12 @@ def load_trajectories(
     cache_path: str | Path | None = None,
     validate: bool = True,
 ) -> np.ndarray:
-    """Carica i dati (400, 1001, 55), salvando o riutilizzando la cache binaria .npy per velocizzare l'I/O."""
+    """Carica il dataset strutturato (400, 1001, 55) in precisione float32.
+
+    Se il file binario 'trajectories.npy' è presente nella cartella di cache,
+    lo carica istantaneamente (in ~0.14s) bypassando il parsing del file CSV.
+    Se la cache non esiste, esegue il parsing del CSV, valida i dati e scrive la cache.
+    """
     paths = get_paths()
     csv_path = Path(csv_path) if csv_path else paths["data_csv"]
     cache_path = Path(cache_path) if cache_path else paths["cache"] / "trajectories.npy"
@@ -174,7 +203,11 @@ def make_split(
     n_test: int = 60,
     seed: int = 42,
 ) -> dict[str, np.ndarray]:
-    """Partiziona le 400 traiettorie in 280 Train, 60 Val e 60 Test con seed fisso (zero data leakage)."""
+    """Partiziona le 400 traiettorie indipendenti in 280 Train (70%), 60 Val (15%) e 60 Test (15%).
+
+    L'operazione è condotta a livello di intere traiettorie simulate per garantire l'assenza
+    assoluta di data leakage temporale tra i set di addestramento e di test.
+    """
     if n_train + n_val + n_test != n_traj:
         raise ValueError("n_train + n_val + n_test deve essere uguale a n_traj")
     perm = np.random.default_rng(seed).permutation(n_traj)
@@ -186,7 +219,7 @@ def make_split(
 
 
 def save_split(split: dict[str, np.ndarray], path: str | Path | None = None) -> Path:
-    """Salva gli indici delle partizioni su file compresso .npz per congelare lo split."""
+    """Salva gli array di indici delle partizioni su file compresso .npz per congelare la suddivisione."""
     path = Path(path) if path else get_paths()["results"] / "split_indices.npz"
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(path, **split)
@@ -207,11 +240,10 @@ def load_split(path: str | Path | None = None) -> dict[str, np.ndarray]:
         return clean_split
 
 
-
 def kfold_splits(
     indices: np.ndarray, k: int = 5, seed: int = 42
 ) -> list[tuple[np.ndarray, np.ndarray]]:
-    """Genera K fold per la validazione incrociata operando strettamente a livello di traiettoria."""
+    """Genera K partizioni disgiunte (fold) per la validazione incrociata a livello di traiettorie intere."""
     perm = np.random.default_rng(seed).permutation(np.asarray(indices))
     folds = np.array_split(perm, k)
     out = []

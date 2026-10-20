@@ -1,19 +1,19 @@
-# Virtual Environment & Python
+# Python & Ambiente Virtuale
 .venv/
 __pycache__/
 *.py[cod]
 
-# Jupyter Notebook & Colab
+# Jupyter Notebook
 .ipynb_checkpoints/
 
-# Dati pesanti e cache (risiedono su Drive)
+# Dati Pesanti e Cache (risiedono su Google Drive)
 data/
-*.csv
-!results/results_log*.csv
+trajectories.csv
 *.npy
 
-# Modelli e pesi addestrati
-checkpoints/
+# Modelli e Checkpoint Addestrati
+checkpoints/*
+!checkpoints/.gitkeep
 *.keras
 *.h5
 
@@ -21,16 +21,14 @@ checkpoints/
 .pytest_cache/
 *.log
 
-# IDE & Sistema Operativo
+# Editor e Sistema Operativo
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
-# File temporanei e materiali esterni
+# Materiali Esterni e Documenti di Riferimento
 *.pdf
 scratch/
-read_data.ipynb
-File csv descriptions.txt
 GUIDA_*.md
-NotebookCollega
+MaterialeSofia/

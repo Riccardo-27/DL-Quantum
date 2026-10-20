@@ -87,7 +87,7 @@ Grazie alla vettorizzazione con `numpy.lib.stride_tricks.sliding_window_view`:
 ## 7. 🖼️ Figure Ufficiali Generate (`figures/02_windowing/`)
 
 Tutti i grafici sono salvati in formato standard JPEG a $\ge 300$ dpi:
-1. **`s3_window_sample_short.jpeg`**: esempio di finestra `short` ($T_{in}=10, T_{out}=40$) per magnetizzazione $m_1$ e correlazione $c_{1,2}$.
-2. **`s3_window_sample_long.jpeg`**: esempio di finestra `long` ($T_{in}=20, T_{out}=40$).
-3. **`s3_window_super_resolution.jpeg`**: visualizzazione intuitiva della super-risoluzione temporale (punti radi osservati vs dinamica continua vs target futuro).
-4. **`s3_tin_grid_comparison.jpeg`**: evidenza grafica dell'allineamento dei target tra $T_{in} \in \{5, 10, 20, 40\}$.
+1. **`window_sample_short.jpeg`**: esempio di finestra `short` ($T_{in}=10, T_{out}=40$) per magnetizzazione $m_1$ e correlazione $c_{1,2}$.
+2. **`window_sample_long.jpeg`**: esempio di finestra `long` ($T_{in}=20, T_{out}=40$).
+3. **`window_super_resolution.jpeg`**: visualizzazione intuitiva della super-risoluzione temporale (punti radi osservati vs dinamica continua vs target futuro).
+4. **`tin_grid_comparison.jpeg`**: evidenza grafica dell'allineamento dei target tra $T_{in} \in \{5, 10, 20, 40\}$.

@@ -1,0 +1,17 @@
+timestamp,author,experiment_id,model_family,t_out,model_name,hp_name,window,t_in,cell,layers,units,params,train_time_s,val_mse,val_mae,val_mse_mag,val_mse_corr,test_mse,test_mae,test_mse_mag,test_mse_corr
+2026-10-20T21:08:17,unknown,M1_Direct_HP1_short,rnn,40,M1_Direct,HP1,short,10,lstm,1,64,173720.0,49.6,0.000161,0.009117,7.5e-05,0.00018,,,,
+2026-10-20T21:08:17,unknown,M1_Direct_HP2_short,rnn,40,M1_Direct,HP2,short,10,lstm,2,64,206744.0,69.4,0.000189,0.010355,0.000102,0.000209,,,,
+2026-10-20T21:08:17,unknown,M1_Direct_HP3_short,rnn,40,M1_Direct,HP3,short,10,gru,1,64,166232.0,45.8,0.000163,0.009133,7.6e-05,0.000182,,,,
+2026-10-20T21:08:17,unknown,M2_Seq2Seq_HP1_short,rnn,40,M2_Seq2Seq,HP1,short,10,lstm,1,64,65015.0,87.3,0.000305,0.012307,0.000177,0.000333,,,,
+2026-10-20T21:08:17,unknown,M2_Seq2Seq_HP2_short,rnn,40,M2_Seq2Seq,HP2,short,10,lstm,2,64,131063.0,144.1,0.000266,0.012075,0.000168,0.000288,,,,
+2026-10-20T21:08:17,unknown,M2_Seq2Seq_HP3_short,rnn,40,M2_Seq2Seq,HP3,short,10,gru,1,64,50039.0,83.9,0.000341,0.012962,0.00017,0.000379,,,,
+2026-10-20T21:08:17,unknown,M1_Direct_HP1_long,rnn,40,M1_Direct,HP1,long,20,lstm,1,64,173720.0,52.5,0.000147,0.008644,4.9e-05,0.000169,,,,
+2026-10-20T21:08:17,unknown,M1_Direct_HP2_long,rnn,40,M1_Direct,HP2,long,20,lstm,2,64,206744.0,75.5,0.000169,0.009594,5.9e-05,0.000193,,,,
+2026-10-20T21:08:17,unknown,M1_Direct_HP3_long,rnn,40,M1_Direct,HP3,long,20,gru,1,64,166232.0,50.4,0.000159,0.009021,7.2e-05,0.000178,,,,
+2026-10-20T21:08:17,unknown,M2_Seq2Seq_HP1_long,rnn,40,M2_Seq2Seq,HP1,long,20,lstm,1,64,65015.0,92.2,0.00028,0.011796,0.000147,0.00031,,,,
+2026-10-20T21:08:17,unknown,M2_Seq2Seq_HP2_long,rnn,40,M2_Seq2Seq,HP2,long,20,lstm,2,64,131063.0,151.3,0.000242,0.011529,0.000145,0.000263,,,,
+2026-10-20T21:08:17,unknown,M2_Seq2Seq_HP3_long,rnn,40,M2_Seq2Seq,HP3,long,20,gru,1,64,50039.0,87.7,0.000333,0.012821,0.000159,0.000372,,,,
+2026-10-20T21:08:17,unknown,Challenge1_Tin_5,rnn,40,M1_Direct,HP1,tin_5,5,lstm,1,64,,46.1,0.000171,0.009412,8.2e-05,0.000191,0.000172,0.00942,8.3e-05,0.000192
+2026-10-20T21:08:17,unknown,Challenge1_Tin_10,rnn,40,M1_Direct,HP1,tin_10,10,lstm,1,64,,47.8,0.000159,0.009088,7.3e-05,0.000179,0.00016,0.009101,7.4e-05,0.000179
+2026-10-20T21:08:17,unknown,Challenge1_Tin_20,rnn,40,M1_Direct,HP1,tin_20,20,lstm,1,64,,51.7,0.000147,0.008644,4.9e-05,0.000169,0.000148,0.008655,5e-05,0.00017
+2026-10-20T21:08:17,unknown,Challenge1_Tin_40,rnn,40,M1_Direct,HP1,tin_40,40,lstm,1,64,,60.7,0.000148,0.008691,6e-05,0.000167,0.000148,0.008695,6e-05,0.000168
