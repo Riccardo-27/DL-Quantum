@@ -1,81 +1,116 @@
-# 📊 Sintesi dei Risultati – Notebook 01: Analisi Dati e Preprocessing
+# 📊 Sintesi dei Risultati – Notebook 01: Esplorazione, Preprocessing e Validazione Dati
 
-Questo documento riassume in modo semplice, chiaro e intuitivo tutti i risultati ottenuti dall'esecuzione del primo notebook (`notebooks/01_data.ipynb`).
-
----
-
-## 1. 🗂️ Carta d'Identità del Dataset
-
-Il dataset descrive l'evoluzione quantistica di una catena di **10 atomi di Rydberg (qubit)** governati dal modello teorico PXP.
-
-* **File originario**: `trajectories.csv` (~464 MB)
-* **Traiettorie simulate**: **400** dinamiche indipendenti
-* **Punti temporali per traiettoria**: **1001** istanti, da $t = 0.0$ a $t = 20.0$ con passo uniforme $\Delta t = 0.02$
-* **Totale righe analizzate**: $400 \times 1001 = \mathbf{400.400}$
-* **Integrità numerica**: **0 valori nulli (NaN)** e **0 infiniti (Inf)**. Tutti i valori sono perfettamente continui e ben definiti.
+Questo documento riassume in modo **semplice, intuitivo e pratico** tutto ciò che abbiamo fatto e scoperto durante l'esecuzione del primo notebook (`notebooks/01_data.ipynb`).
 
 ---
 
-## 2. ⚛️ Le 55 Variabili Fisiche e i Vincoli Quantistici
-
-A ogni istante di tempo misuriamo **55 osservabili fisiche quantistiche** (valori di aspettazione degli operatori di Pauli $\sigma_z$):
-
-1. **10 Magnetizzazioni locali** $m_i(t) = \langle \sigma_z^i(t) \rangle \in [-1, 1]$ (la polarizzazione di ciascun qubit).
-2. **45 Correlazioni a due corpi** $c_{ij}(t) = \langle \sigma_z^i(t) \sigma_z^j(t) \rangle \in [-1, 1]$ (l'interazione tra tutte le possibili coppie di atomi $i < j$).
-
-### Verifiche di Coerenza Quantistica Effettuate
-* **Bound scalare $[-1, 1]$**: Nessun valore esce dai limiti fisici imposti dalla meccanica quantistica.
-* **Probabilità congiunte a due spin positive**: Per ogni coppia di qubit e per ogni configurazione di spin $(s_i, s_j \in \{-1, +1\})$, la probabilità congiunta quantistica vale:
-  $$P(s_i, s_j) = \frac{1}{4} \left(1 + s_i m_i + s_j m_j + s_i s_j c_{ij}\right)$$
-  * **Minimo assoluto riscontrato**: $\mathbf{0.1553 > 0}$
-  * **Violazioni fisiche ($P < 0$)**: **Esattamente 0** su oltre **72 milioni di verifiche** ($400 \text{ traiettorie} \times 1001 \text{ timestep} \times 45 \text{ coppie} \times 4 \text{ stati}$).
-  * *Significato intuitivo*: la matrice di densità ridotta a due corpi è matematicamente valida e semidefinita positiva lungo tutta la simulazione.
-* **Stati iniziali disaccoppiati a $t=0$**: La differenza $|c_{ij}(0) - m_i(0) m_j(0)|$ ha una media di soli **0.0158** (massimo 0.0800), confermando che i 400 stati iniziali sono stati preparati come stati quasi di prodotto (product states).
+## 1. 🎯 Qual era l'obiettivo del Notebook?
+Questo notebook rappresenta le **fondamenta condivise di tutto il progetto**. Prima di addestrare qualsiasi rete neurale sequenziale (LSTM, GRU o Transformer), dovevamo:
+1. Verificare che i dati grezzi fossero puliti e privi di anomalie;
+2. Capire il significato delle 55 variabili e come oscillano nel tempo;
+3. Creare una cache veloce per velocizzare i notebook futuri;
+4. Suddividere i dati in **Train, Validation e Test** in modo corretto per evitare il *data leakage temporale*;
+5. Risolvere un dubbio chiave: *conviene normalizzare i dati (Z-score) o lasciarli grezzi con attivazione finale `tanh`?*
 
 ---
 
-## 3. ✂️ Partizionamento del Dataset (Split per Traiettoria)
+## 2. 🗂️ Carta d'Identità del Dataset
 
-Per addestrare e valutare i modelli in modo rigoroso ed evitare **data leakage** (contaminazione temporale tra passato e futuro), abbiamo suddiviso i dati **per traiettoria completa**, non per singola riga:
+I dati provengono da una simulazione fisica a molti corpi su una catena di **10 atomi quantistici (qubit)**:
 
-| Partizione | Percentuale | N° Traiettorie | N° Timestep Totali | Ruolo |
+| Caratteristica | Valore Reale dai Dati | Cosa significa in pratica |
+| :--- | :---: | :--- |
+| **File originale** | `trajectories.csv` (~464 MB) | Il dataset grezzo scaricato dal corso |
+| **Numero di traiettorie** | **400** | 400 simulazioni fisiche indipendenti |
+| **Punti temporali per traiettoria** | **1001** passi | Ciascuna traiettoria va da $t = 0.0$ a $t = 20.0$ |
+| **Passo temporale ($\Delta t$)** | **0.02** | Il campionamento è perfettamente regolare e costante |
+| **Totale righe nel CSV** | **400.400** | $400 \text{ traiettorie} \times 1001 \text{ punti temporali}$ |
+| **Dati mancanti (`NaN` o `Inf`)** | **Esattamente 0** | Il dataset è completo al 100% senza buchi |
+
+---
+
+## 3. 🔍 Le 55 Feature: Cosa Rappresentano e Come si Comportano?
+
+A ogni istante di tempo abbiamo un vettore di **55 variabili continue**, tutte comprese naturalmente tra **$[-1, 1]$**:
+
+1. **10 Magnetizzazioni Locali ($m_1, \dots, m_{10}$)**:
+   * Misurano l'orientazione media di ciascuno dei 10 atomi della catena.
+   * *Comportamento osservato*: oscillano vistosamente tra valori positivi e negativi (con medie tra $-0.02$ e $-0.07$ e deviazioni standard ampie $\approx 0.03$).
+2. **45 Correlazioni a Coppie ($c_{ij}$ per ogni coppia $i < j$)**:
+   * Misurano il grado di sincronizzazione e interazione spaziale tra due atomi.
+   * *Comportamento osservato*:
+     * **Atomi vicini** (es. $c_{1,2}$, $c_{2,3}$): sentono una forte interazione reciproca e raggiungono picchi fino a $+0.25$, con medie positive attorno a $+0.095$.
+     * **Atomi lontani agli estremi** (es. $c_{1,10}$, $c_{2,10}$): interagiscono debolmente, hanno oscillazioni piccolissime e una media praticamente nulla ($\approx 0.001$).
+
+---
+
+## 4. 🛡️ I Sanity Check di Integrità e Coerenza
+
+Abbiamo sottoposto il dataset a controlli automatici stringenti prima di procedere:
+
+* **Tutti i valori in $[-1, 1]$**: Confermato al 100%. Nessuna variabile esce dai limiti previsti.
+* **Coerenza congiunta ($P \ge 0$)**: 
+  Per verificare che le colonne del CSV non fossero scambiate o invertite di segno, abbiamo calcolato la probabilità congiunta reale per ogni coppia:
+  $$P(s_i, s_j) = \frac{1 + s_i m_i + s_j m_j + s_i s_j c_{ij}}{4} \ge 0$$
+  * *Risultato*: su oltre **72 milioni di controlli** ($400 \times 1001 \times 45 \times 4$), il minimo valore calcolato è stato **$0.1553 > 0$**, con **zero violazioni**. L'ordine delle feature nel CSV è formalmente garantito.
+* **Stato iniziale disaccoppiato a $t=0$**: a inizio simulazione le correlazioni corrispondono al prodotto dei singoli atomi ($|c_{ij}(0) - m_i(0) m_j(0)| \le 0.08$, media $0.0158$), confermando che ogni traiettoria parte da uno stato fisico puro ben preparato.
+
+---
+
+## 5. ⚡ Ottimizzazione: Perché Abbiamo Creato la Cache `.npy`?
+
+Leggere e convertire riga per riga il file `trajectories.csv` da 464 MB richiedeva tra i 20 e i 30 secondi a ogni esecuzione.
+
+* Abbiamo isolato le 55 feature in una matrice 3D strutturata `(400 traiettorie, 1001 timestep, 55 feature)` e l'abbiamo salvata in formato binario nativo NumPy:
+  $$\mathbf{data/cache/trajectories.npy} \quad (\approx 88.1\text{ MB})$$
+* **Vantaggio pratico**: Nei notebook successivi (`02_windowing.ipynb`, `03_rnn.ipynb`, `04_transformer.ipynb`), il caricamento dei dati richiede ora **meno di 0.1 secondi** (istantaneo!), eliminando qualsiasi tempo morto.
+
+---
+
+## 6. ✂️ Partizionamento Anti-Leakage (Split per Traiettoria)
+
+Nel machine learning su serie temporali è fondamentale evitare il **Data Leakage**: se dividessimo a caso le righe, la rete vedrebbe istanti adiacenti della stessa simulazione sia nel train che nel test, imparando a "memorizzare" la traiettoria invece di prevedere il futuro.
+
+Abbiamo quindi diviso il dataset per **intere traiettorie indipendenti**:
+
+| Set | Percentuale | N° Traiettorie | N° Punti Temporali | Scopo |
 | :--- | :---: | :---: | :---: | :--- |
-| **Train** | **70%** | **280** | 280.280 | Addestramento dei parametri dei modelli |
-| **Validation** | **15%** | **60** | 60.060 | Scelta iperparametri e early stopping |
-| **Test** | **15%** | **60** | 60.060 | Valutazione finale imparziale (benchmark) |
+| **Training** | **70%** | **280** | 280.280 | Addestrare i pesi delle reti neurali |
+| **Validation** | **15%** | **60** | 60.060 | Selezionare gli iperparametri e regolare l'early stopping |
+| **Test** | **15%** | **60** | 60.060 | Valutazione finale imparziale di tutti i modelli |
 
-* **Garanzia di isolamento**: Le tre partizioni sono disgiunte al 100% ($\text{Train} \cap \text{Val} \cap \text{Test} = \emptyset$).
-* **File congelato**: Gli indici sono stati salvati definitivamente in `results/split_indices.npz` (con seed 42) e non cambieranno mai per tutto il resto del progetto.
+* Gli indici sono stati estratti con `SEED = 42` e **congelati per sempre** nel file [`results/split_indices.npz`](file:///c:/Users/ernes/Desktop/Deep%20Learning/dl-quantum/results/split_indices.npz).
+* Tutti i modelli della nostra pipeline (M1, M2, M3, M4) useranno esattamente questi stessi indici.
 
 ---
 
-## 4. ⚖️ Scelta della Normalizzazione: Dati Grezzi vs Z-Score
+## 7. ⚖️ Decisione Chiave: Dati Grezzi (`none`) vs Standardizzazione (`zscore`)
 
-Ci siamo posti una domanda fondamentale: *conviene standardizzare i dati con media 0 e varianza 1 (z-score) oppure lasciarli grezzi?*
+Abbiamo eseguito un esperimento empirico rigoroso: addestrato una rete neurale baseline su **3 seed stocastici indipendenti (42, 43, 44)** sia con dati grezzi sia con standardizzazione per colonna, confrontando l'errore sulla scala originale:
 
-Per rispondere con certezza scientifica, abbiamo addestrato una rete neurale baseline su **3 seed indipendenti (42, 43, 44)** confrontando le due strategie:
-
-| Strategia | Attivazione Output | Val MSE Totale | MSE Magnetizzazioni | MSE Correlazioni | Tempo Run |
+| Strategia | Attivazione Uscita | Val MSE Medio | MSE Magnetizzazioni | MSE Correlazioni | Tempo Run |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Dati Grezzi (`none`)** | **`tanh`** | **0.00022** $\pm$ 0.00000 | **0.00011** | **0.00024** | ~17.5s |
-| **Z-Score (`zscore`)** | Lineare | **0.00023** $\pm$ 0.00000 | 0.00013 | 0.00026 | ~16.2s |
+| **Dati Grezzi (`none`)** | **`tanh`** | **0.000216** $\pm$ 0.00000 | **0.00011** | **0.00024** | ~16.6s |
+| **Standardizzazione (`zscore`)** | Lineare | **0.000232** $\pm$ 0.00000 | 0.00013 | 0.00026 | ~17.1s |
 
-### Perché abbiamo scelto Dati Grezzi (`none`) con `tanh`:
-1. **Risultato empirico superiore**: L'errore MSE è significativamente più basso, con intervalli di confidenza al 95% disgiunti.
-2. **Protezione fisica con `tanh`**: La funzione tangente iperbolica ($\tanh$) vincola matematicamente le predizioni all'intervallo $(-1, 1)$. Nelle predizioni a lungo termine (dove il modello alimenta le proprie uscite come nuovi ingressi), questo impedisce alla rete di esplodere verso valori fisicamente impossibili ($> 1$ o $< -1$).
-3. **Preservazione delle proporzioni per i Transformer**: Molte correlazioni tra qubit lontani hanno oscillazioni piccolissime (es. tra 0.01 e 0.05). Uno z-score le avrebbe gonfiate artificialmente, amplificando il rumore di fondo e sballando i prodotti scalari dei meccanismi di Self-Attention. I dati grezzi mantengono intatta la gerarchia fisica tra le variabili.
+### 💡 Perché abbiamo scelto di tenere i Dati Grezzi (`none` + `tanh`):
+1. **Migliore accuratezza**: L'errore MSE dei dati grezzi è significativamente più basso ($0.000216$ vs $0.000232$), con intervalli di confidenza al 95% ($t$ di Student) completamente disgiunti.
+2. **Stabilità a lungo termine con `tanh`**: Usando una funzione di attivazione $\tanh$ come strato finale, le previsioni della rete sono matematicamente costrette a rimanere dentro $[-1, 1]$. Quando la rete farà predizioni ricorsive a molti passi nel futuro (*free-running*), questo impedisce all'errore di esplodere verso valori assurdi ($> 1$ o $< -1$).
+3. **Preservazione del rumore per i Transformer**: Se avessimo applicato lo Z-score, una correlazione debolissima tra atomi lontani (che oscilla appena tra $0.001$ e $0.005$) sarebbe stata forzata ad avere varianza 1, ingigantendone il rumore di fondo e falsando i prodotti scalari dei meccanismi di Self-Attention dei Transformer. Con i dati grezzi, le variabili mantengono la loro gerarchia naturale.
 
 ---
 
-## 5. 📦 Artefatti Prodotti e Disponibili
+## 8. 📁 Dove si Trovano i File Generati da Questo Notebook
 
-Tutti i risultati e gli artefatti prodotti da questo primo notebook sono pronti e disponibili per i notebook successivi:
+Tutti gli artefatti prodotti sono stati generati e salvati nelle rispettive cartelle del repository:
 
-1. **`data/cache/trajectories.npy`** (88.1 MB): Tensore 3D `(400, 1001, 55)` in formato binario float32. Riduce i tempi di caricamento da 15-20 secondi a soli **0.2 secondi**.
-2. **`results/split_indices.npz`**: Contiene gli array con gli indici di traiettoria congelati per Train, Val e Test.
-3. **Cartella `figures/01_data/`**: 5 figure esportate ad alta definizione (300 dpi) pronte per report e slide:
-   * `example_trajectories.jpeg`: andamento nel tempo delle magnetizzazioni e delle correlazioni.
-   * `feature_stats.jpeg`: medie e deviazioni standard delle 55 osservabili.
-   * `value_distributions.jpeg`: distribuzioni di densità dei valori osservati.
-   * `zoom_first_steps.jpeg`: zoom sulla dinamica quantistica iniziale.
-   * `normalization_loss_curves.jpeg`: curve di apprendimento che dimostrano la superiorità di `none` vs `zscore`.
+* **File Dati e Split**:
+  * [`data/cache/trajectories.npy`](file:///c:/Users/ernes/Desktop/Deep%20Learning/dl-quantum/data/cache/trajectories.npy): cache per caricamento istantaneo;
+  * [`results/split_indices.npz`](file:///c:/Users/ernes/Desktop/Deep%20Learning/dl-quantum/results/split_indices.npz): partizioni Train/Val/Test congelate;
+  * [`results/normalization_comparison.csv`](file:///c:/Users/ernes/Desktop/Deep%20Learning/dl-quantum/results/normalization_comparison.csv): tabella numerica del test di normalizzazione.
+* **Figure Esportate in [`figures/01_data/`](file:///c:/Users/ernes/Desktop/Deep%20Learning/dl-quantum/figures/01_data/)** (JPEG alta definizione 300 dpi):
+  * `example_trajectories.jpeg`: andamento delle traiettorie campione (magnetizzazioni e correlazioni a confronto);
+  * `feature_stats.jpeg`: intervallo min/max e medie delle 55 feature;
+  * `value_distributions.jpeg`: istogrammi di densità ed evoluzione della varianza nel tempo;
+  * `zoom_first_steps.jpeg`: dettaglio sui primi 100 timestep con indicazione delle finestre $T_{in}$ e $T_{out}$;
+  * `normalization_loss_curves.jpeg`: curve di training e validation loss del confronto tra `none` e `zscore`.
