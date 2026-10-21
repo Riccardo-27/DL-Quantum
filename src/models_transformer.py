@@ -85,11 +85,14 @@ class PositionalEmbedding(keras.layers.Layer):
         self.pos_encoding = positional_encoding(length=self.max_length, depth=self.d_model)
 
     def call(self, x):
-        length = tf.shape(x)[1]
         x = self.embedding(x)
-        x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
-        x = x + self.pos_encoding[tf.newaxis, :length, :]
-        return x
+        x = x * float(np.sqrt(self.d_model))
+        seq_len = x.shape[1]
+        if seq_len is not None:
+            pos = self.pos_encoding[tf.newaxis, : int(seq_len), :]
+        else:
+            pos = self.pos_encoding[tf.newaxis, : keras.ops.shape(x)[1], :]
+        return x + pos
 
     def get_config(self) -> dict:
         cfg = super().get_config()
@@ -484,6 +487,14 @@ class TransformerDirect(keras.Model):
         out = self.head(last_step)                    # (batch, t_out * n_features)
         return self.reshape(out)                      # (batch, t_out, n_features)
 
+    def build_from_config(self, config):
+        t_in = 10
+        if config and "input_shape" in config and config["input_shape"]:
+            shape = config["input_shape"]
+            if isinstance(shape, (list, tuple)) and len(shape) >= 2 and shape[1] is not None:
+                t_in = int(shape[1])
+        _ = self(tf.zeros((1, t_in, self.n_features)), training=False)
+
     def get_config(self) -> dict:
         cfg = super().get_config()
         cfg.update({
@@ -663,6 +674,18 @@ class TransformerSeq2Seq(keras.Model):
             "causal_self_attention": self.decoder.last_causal_attn_scores.numpy(),
             "encoder_self_attention": self.encoder.last_attn_scores.numpy(),
         }
+
+    def build_from_config(self, config):
+        t_in = 10
+        if config and "input_shape" in config and config["input_shape"]:
+            shape = config["input_shape"]
+            if isinstance(shape, (list, tuple)) and len(shape) > 0 and isinstance(shape[0], (list, tuple)):
+                if len(shape[0]) >= 2 and shape[0][1] is not None:
+                    t_in = int(shape[0][1])
+        _ = self(
+            (tf.zeros((1, t_in, self.n_features)), tf.zeros((1, self.t_out, self.n_features))),
+            training=False,
+        )
 
     def get_config(self) -> dict:
         cfg = super().get_config()
