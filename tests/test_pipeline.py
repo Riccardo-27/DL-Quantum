@@ -430,3 +430,111 @@ def test_rnn_model_save_and_reload(tmp_path):
 
     # Le traiettorie predette devono coincidere numericamente elemento per elemento
     np.testing.assert_allclose(pred_orig, pred_loaded, atol=1e-5)
+
+
+def test_transformer_models_and_attention():
+    """Verifica M3 (TransformerDirect) e M4 (TransformerSeq2Seq): shapes, tanh, causal mask e attention scores."""
+    pytest.importorskip("tensorflow")
+    from src.models_transformer import (
+        TransformerDirect,
+        TransformerSeq2Seq,
+        build_transformer_direct,
+        build_transformer_from_config,
+        positional_encoding,
+    )
+
+    set_seeds(42)
+    rng = np.random.default_rng(0)
+    x = rng.uniform(-1, 1, (4, 10, N_FEATURES)).astype(np.float32)
+    y = rng.uniform(-1, 1, (4, 40, N_FEATURES)).astype(np.float32)
+
+    # 1. Codifica posizionale sinusoidale (Lab 7)
+    pe = np.asarray(positional_encoding(length=50, depth=16))
+    assert pe.shape == (50, 16)
+    assert np.all(np.abs(pe) <= 1.0)
+
+    # 2. M3 (TransformerDirect): shape (batch, t_out, 55) e vincolo fisico tanh in [-1, 1]
+    m3 = build_transformer_direct(t_out=40, t_in=10, d_model=16, num_heads=2, d_ff=32, n_layers=1)
+    y3 = np.asarray(m3(x))
+    assert isinstance(m3, TransformerDirect)
+    assert y3.shape == (4, 40, N_FEATURES)
+    assert np.all(np.abs(y3) <= 1.0)
+
+    # 3. M4 (TransformerSeq2Seq): coerenza tra Teacher Forcing auto-alimentato e Free-Running
+    m4 = TransformerSeq2Seq(t_out=40, d_model=16, num_heads=2, d_ff=32, n_layers=1)
+    y4_tf = np.asarray(m4((x, decoder_inputs(x, y)), training=False))
+    assert y4_tf.shape == (4, 40, N_FEATURES)
+    assert np.all(np.abs(y4_tf) <= 1.0)
+
+    y4_fr = np.asarray(m4.free_running(x, training=False))
+    assert y4_fr.shape == (4, 40, N_FEATURES)
+    y4_tf_self = np.asarray(m4((x, decoder_inputs(x, y4_fr)), training=False))
+    np.testing.assert_allclose(y4_tf_self, y4_fr, atol=1e-5)
+    np.testing.assert_allclose(m4.predict_free_running(x, batch_size=2), y4_fr, atol=1e-5)
+
+    # 4. Sfida 3: Estrazione attention scores e verifica della maschera causale triangolare inferiore
+    attn = m4.get_attention_scores(x[:2])
+    cross = attn["cross_attention"]
+    causal = attn["causal_self_attention"]
+    enc_self = attn["encoder_self_attention"]
+    assert cross.shape == (2, 2, 40, 10)
+    assert causal.shape == (2, 2, 40, 40)
+    assert enc_self.shape == (2, 2, 10, 10)
+    # Le righe delle matrici di attenzione normalizzate con softmax sommano a 1
+    np.testing.assert_allclose(cross.sum(axis=-1), 1.0, atol=1e-5)
+    np.testing.assert_allclose(causal.sum(axis=-1), 1.0, atol=1e-5)
+    # Verifica anti-leakage (Guida S11): la parte strettamente triangolare superiore (j > i) deve essere zero
+    upper_tri = np.triu(causal, k=1)
+    np.testing.assert_allclose(upper_tri, 0.0, atol=1e-6)
+
+    # 5. Istanziazione tramite factory da DEFAULT_CONFIG
+    for model_name in ("transformer_direct", "transformer"):
+        cfg = make_config(
+            model=model_name,
+            transformer_d_model=16,
+            transformer_heads=2,
+            transformer_d_ff=32,
+            transformer_layers=1,
+        )
+        assert build_transformer_from_config(cfg, t_in=10).count_params() > 0
+
+
+@pytest.mark.parametrize("model_name", ["transformer_direct", "transformer"])
+def test_transformer_train_hybrid_and_save_reload(tmp_path, model_name):
+    """Verifica il ciclo ibrido (TF -> MM -> SS) e il salvataggio/ricaricamento .keras per M3 e M4."""
+    pytest.importorskip("tensorflow")
+    import keras
+    from src.models_transformer import CUSTOM_OBJECTS, build_transformer_from_config
+    from src.training import predict, train_hybrid
+
+    rng = np.random.default_rng(7)
+    X = rng.uniform(-1, 1, (16, 10, N_FEATURES)).astype(np.float32)
+    Y = rng.uniform(-1, 1, (16, 8, N_FEATURES)).astype(np.float32)
+    cfg = make_config(
+        model=model_name,
+        t_in=10,
+        t_out=8,
+        transformer_d_model=16,
+        transformer_heads=2,
+        transformer_d_ff=32,
+        transformer_layers=1,
+        epochs_tf=1,
+        epochs_mm=1,
+        epochs_ss=1,
+        batch_size=8,
+    )
+
+    set_seeds(42)
+    model = build_transformer_from_config(cfg, t_in=10)
+    hist = train_hybrid(model, X, Y, X[:4], Y[:4], cfg, verbose=0)
+    assert [r["phase"] for r in hist] == ["tf", "mm", "ss"]
+    assert all(np.isfinite(r["loss"]) and np.isfinite(r["val_mse"]) for r in hist)
+
+    pred_orig = predict(model, X[:3], batch_size=2)
+    ckpt_file = tmp_path / f"{model_name}_test.keras"
+    model.save(ckpt_file)
+    assert ckpt_file.exists()
+
+    loaded = keras.models.load_model(ckpt_file, custom_objects=CUSTOM_OBJECTS)
+    pred_loaded = predict(loaded, X[:3], batch_size=2)
+    np.testing.assert_allclose(pred_orig, pred_loaded, atol=1e-5)
