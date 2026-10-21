@@ -699,7 +699,9 @@ CUSTOM_OBJECTS: dict[str, type] = {
 }
 
 
-def build_transformer_from_config(cfg: dict, t_in: int | None = None) -> keras.Model:
+def build_transformer_from_config(
+    cfg: dict, t_in: int | None = None, n_features: int = N_FEATURES
+) -> keras.Model:
     """Costruisce e istanzia il modello Transformer definito nel dizionario `cfg`.
 
     Supporta:
@@ -708,7 +710,7 @@ def build_transformer_from_config(cfg: dict, t_in: int | None = None) -> keras.M
     """
     common = dict(
         t_out=cfg["t_out"],
-        n_features=N_FEATURES,
+        n_features=int(n_features),
         d_model=cfg["transformer_d_model"],
         num_heads=cfg["transformer_heads"],
         d_ff=cfg["transformer_d_ff"],
@@ -721,7 +723,7 @@ def build_transformer_from_config(cfg: dict, t_in: int | None = None) -> keras.M
         return build_transformer_direct(t_in=t, **common)
     if cfg["model"] == "transformer":
         model = TransformerSeq2Seq(**common)
-        model((tf.zeros((1, t, N_FEATURES)), tf.zeros((1, cfg["t_out"], N_FEATURES))))
+        model((tf.zeros((1, t, int(n_features))), tf.zeros((1, cfg["t_out"], int(n_features)))))
         return model
     raise ValueError(
         f"Modello Transformer sconosciuto: {cfg['model']!r} (attesi 'transformer_direct' | 'transformer')"
