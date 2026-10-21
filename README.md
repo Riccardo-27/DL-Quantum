@@ -31,23 +31,27 @@ dl-quantum/
 │   ├── data.py               # Lettura CSV, validazione fisica, caching .npy e split per traiettoria
 │   ├── windowing.py          # Finestre temporali, super-resolution, target alignment e anti-leakage
 │   ├── models_rnn.py         # Modelli ricorrenti: M1 (Diretto) e M2 (Seq2Seq LSTM/GRU con free-running)
+│   ├── models_transformer.py # Modelli Transformer (Lab 7): M3 (Diretto) e M4 (Seq2Seq causale con attention scores)
 │   ├── training.py           # Training loop ibrido progressivo a 3 fasi (TF -> MM -> SS)
 │   ├── metrics.py            # Metriche globali e disaggregate (qubit, coppie, orizzonte)
 │   ├── stats.py              # Statistiche e intervalli di confidenza 95% (t di Student con dof=2)
 │   ├── results_log.py        # Log concorrente su CSV con merge automatico
 │   └── plots.py              # Esportazione grafici standardizzati JPEG (>= 300 DPI)
 ├── tests/                    # Suite di test automatici integrati
-│   └── test_pipeline.py      # 18 test completi (determinismo, shapes, fisica, modelli, training, plot)
+│   └── test_pipeline.py      # 18 test completi (determinismo, shapes, fisica, modelli RNN/Transformer, training, plot)
 ├── notebooks/                # Notebook di analisi, esperimenti e visualizzazione
 │   ├── 01_data.ipynb         # Esplorazione dati, split (280/60/60) e normalizzazione
 │   ├── 02_windowing.ipynb    # Generazione finestre temporali e super-risoluzione
 │   ├── 03_rnn.ipynb          # Modelli ricorrenti (LSTM / GRU), Sfida 1 e analisi disaggregata
-│   ├── 04_transformer.ipynb  # Modelli Transformer (M3 Diretto, M4 Seq2Seq causale e Sfida 3)
-│   └── 05_inference.ipynb    # Pipeline di inferenza rapida, Table 1 e benchmark finale
-├── results/                  # File di log sperimentali e partizioni congelate (split_indices.npz)
+│   ├── 04_transformer.ipynb  # Modelli Transformer (Start Small, Autoencoder, M3/M4 e Sfide 1-2-3)
+│   └── 05_inference.ipynb    # Pipeline di inferenza rapida, Table 1, 5-Fold CV e demo per l'orale
+├── results/                  # File di log sperimentali, Table 1 CSV, sintesi risultati (.md) e split_indices.npz
 ├── figures/                  # Grafici JPEG ad alta risoluzione (>= 300 DPI)
-│   ├── 02_windowing/         # Figure campionamento finestre e super-risoluzione
-│   └── 03_rnn/               # Curve di training, accumulo errore free-running e analisi disaggregata
+│   ├── 01_data/              # Figure esplorazione dataset, distribuzioni e confronto normalizzazione
+│   ├── 02_windowing/         # Figure campionamento finestre, allineamento target e super-risoluzione
+│   ├── 03_rnn/               # Curve di training RNN, accumulo errore free-running, Sfida 1 e analisi disaggregata
+│   ├── 04_transformer/       # Curve Transformer, Start Small/AE, Sfide 1-2-3 (mappe di attenzione) e analisi disaggregata
+│   └── 05_inference/         # Figure benchmark globale (Table 1), confronto Sfide 1-2 e predizione live sul Test Set
 ├── checkpoints/              # Directory per pesi addestrati (.keras, esclusi da git)
 ├── report/                   # Relazione tecnica di progetto
 ├── slides/                   # Presentazione per l'esposizione orale
@@ -61,13 +65,14 @@ dl-quantum/
 
 | Componente / Fase | Stato | Dettagli Principali |
 | :--- | :---: | :--- |
-| **Validazione & Preprocessing** | ✅ Completato | Split per traiettoria disgiunto 280/60/60 congelato in `results/split_indices.npz`. Decisione motivata di utilizzare **dati grezzi (`none`) con layer finale `tanh`** per preservare l'intervallo fisico $[-1, 1]$ e proteggere i prodotti scalari dell'attenzione. Generata cache `data/cache/trajectories.npy` (88 MB) per caricamento istantaneo. |
-| **Finestrature Temporali & Sfida 2** | ✅ Completato | Implementate finestre standard `short` ($T_{in}=10 \to 40$) e `long` ($T_{in}=20 \to 40$) con $\text{stride}=10$. Introdotto allineamento target `align_t_in=40` per la Sfida 1. Generazione finestre di Super-Risoluzione con subsampling $2\times$ per la Sfida 2. Esportate 4 figure ad alta risoluzione in `figures/02_windowing/`. |
-| **Modelli Ricorrenti (RNN)** | ✅ Completato | Implementati e validati **M1 (RNN Diretto Multi-Step)** e **M2 (RNN Seq2Seq Autoregressivo con LSTM/GRU)**. Addestramento completato con loop ibrido progressivo (**TF $\to$ MM $\to$ SS**) per mitigare l'Exposure Bias. Inferenza pura in *free-running* a 40 step. Studio della finestra minima (Sfida 1) e analisi disaggregata dell'errore (per qubit, orizzonte e matrice $10 \times 10$). Esportate 4 figure in `figures/03_rnn/` e loggate 16 run in `results/results_log_ernesto.csv`. |
-| **Suite di Test Integrata** | ✅ Completato | **18 test su 18 passanti al 100%** in `tests/test_pipeline.py`. Codice interamente commentato con spiegazioni fisiche e matematiche. |
+| **Validazione & Preprocessing** | ✅ Completato | Split per traiettoria disgiunto 280/60/60 congelato in `results/split_indices.npz`. Decisione motivata di utilizzare **dati grezzi (`none`) con layer finale `tanh`** per preservare l'intervallo fisico $[-1, 1]$ e proteggere i prodotti scalari dell'attenzione. Generata cache `data/cache/trajectories.npy` (88 MB) per caricamento istantaneo. Sintesi in `results/01_data_results.md`. |
+| **Finestrature Temporali & Sfida 2** | ✅ Completato | Implementate finestre standard `short` ($T_{in}=10 \to 40$) e `long` ($T_{in}=20 \to 40$) con $\text{stride}=10$. Introdotto allineamento target `align_t_in=40` per la Sfida 1. Generazione finestre di Super-Risoluzione con subsampling $2\times$ per la Sfida 2. Esportate 4 figure ad alta risoluzione in `figures/02_windowing/`. Sintesi in `results/02_windowing_results.md`. |
+| **Modelli Ricorrenti (RNN)** | ✅ Completato | Implementati e validati **M1 (RNN Diretto Multi-Step)** e **M2 (RNN Seq2Seq Autoregressivo con LSTM/GRU)**. Addestramento completato con loop ibrido progressivo (**TF $\to$ MM $\to$ SS**). Miglior modello RNN: **M1 (HP1, LSTM 64u)** con $\text{Val MSE} = 0.000161 \pm 0.000001$ (`short`) e $0.000147$ (`long`). Studio della finestra minima (Sfida 1) e analisi disaggregata. Esportate 4 figure in `figures/03_rnn/`, log in `results/results_log_ernesto.csv` e sintesi in `results/03_rnn_results.md`. |
+| **Modelli Transformer (M3/M4) & Sfide 1–2–3** | ✅ Completato | Implementati in `src/models_transformer.py` e validati in `notebooks/04_transformer.ipynb`: approccio *Start Small* e Autoencoder (Lab 6), **M3 (`TransformerDirect`)** e **M4 (`TransformerSeq2Seq` causale, Lab 7)**. Miglior modello assoluto: **M3 (HP3: $d=64, H=2, L=1$)** con **$\text{Val MSE} = 0.000121 \pm 0.000001$** (-25% rispetto a M1, zero violazioni fisiche $P \ge 0$). Risolte Sfida 1 ($T_{in}=40 \to \text{MSE } 0.000111$), Sfida 2 (Super-Resolution $\times 2 \to \text{MSE } 0.000121$) e Sfida 3 (mappe di `CrossAttention` e verifica `CausalSelfAttention`). Esportate 9 figure in `figures/04_transformer/` e sintesi in `results/04_transformer_results.md`. |
+| **Benchmark Finale, 5-Fold CV & Inferenza (`05_inference.ipynb`)** | ✅ Completato | Implementato `notebooks/05_inference.ipynb`: aggregazione multi-autore, generazione di **Table 1** (`results/table1_benchmark_complete.csv`) con 95% CI ($t$ di Student) e valori migliori in grassetto, **5-Fold Cross-Validation per traiettoria** sui modelli vincitori (`M1 HP1` vs `M3 HP3`) con caching in `results/kfold_cv_results.csv`, grafici comparativi in `figures/05_inference/` e cella di **Demo Live sul Test Set Cieco** pronta per l'orale. |
+| **Suite di Test Integrata** | ✅ Completato | **18 test su 18 passanti al 100%** in `tests/test_pipeline.py` (copertura completa su seeding, dati, finestre, metriche, fisica quantistica, modelli M1/M2/M3/M4, mappe di attenzione causali, ciclo ibrido e salvataggio `.keras`). |
 | **Documentazione `src/` & Decision Log** | ✅ Completato | Tutti gli 11 moduli di `src/` documentati con Google-style docstrings. `decision_log.md` ristrutturato con focus accademico su Deep Learning e roadmap incrementale (*Cosa introduce / Limite teorico / Superamento*). |
-| **Modelli Transformer (M3/M4) & Sfida 3** | ⏳ In Corso | Sviluppo in `notebooks/04_transformer.ipynb`: M3 (Transformer Diretto con self-attention) e M4 (Transformer Seq2Seq causale con cross-attention ed estrazione mappe di attenzione per la Sfida 3). |
-| **Benchmark Finale & Relazione** | 📅 Pianificato | Generazione Table 1 con intervalli di confidenza al 95% ($t$ di Student, $n=3$), demo di inferenza in `05_inference.ipynb`, stesura del report e delle slide. |
+| **Relazione Tecnica & Presentazione** | 📅 Pianificato | Stesura finale del report tecnico ($\le 10$ pagine in `report/`) e delle slide per l'esposizione orale (5 minuti in `slides/`). |
 
 ---
 
@@ -125,4 +130,3 @@ Per evitare conflitti di branch e sovrascritture su Google Drive quando entrambi
 * **Separazione dati e codice**: Come definito in `.gitignore`, i file di grandi dimensioni (`trajectories.csv`, array binari `.npy` e checkpoint `.keras`) risiedono esclusivamente su Google Drive per non appesantire la cronologia Git.
 * **Logging concorrente**: Ciascun autore scrive su un proprio file di log dedicato (`results/results_log_<autore>.csv`), aggregabile automaticamente in fase di confronto tramite `src/results_log.py` senza conflitti di merge.
 * **Branching Model**: Sviluppo attivo isolato sui due branch (`dev-ernesto` e `dev-riccardo`) con allineamento e unione su `main` tramite Pull Request.
-
