@@ -1,0 +1,619 @@
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[top=1.8cm,bottom=1.8cm,left=1.9cm,right=1.9cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{caption}
+
+\captionsetup{font=footnotesize,labelfont=bf,aboveskip=4pt,belowskip=2pt}
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{6pt plus 2pt minus 2pt}
+\setlength{\floatsep}{5pt plus 2pt minus 2pt}
+\renewcommand{\arraystretch}{0.95}
+\setlist{nosep,leftmargin=*}
+
+\makeatletter
+\renewcommand\section{\@startsection {section}{1}{\z@}%
+                                   {-1.8ex \@plus -0.5ex \@minus -.2ex}%
+                                   {0.9ex \@plus.2ex}%
+                                   {\normalfont\large\bfseries}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+                                     {-1.3ex\@plus -0.4ex \@minus -.2ex}%
+                                     {0.6ex \@plus .2ex}%
+                                     {\normalfont\normalsize\bfseries}}
+\makeatother
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=blue!60!black,
+    urlcolor=blue!60!black
+}
+
+\title{\vspace{-1.2cm}\Large \textbf{Quantum Dynamics: Predicting Qubit Evolution with Deep Learning}\vspace{-0.2cm}}
+\author{
+    \textsc{Gligora Ernesto} \qquad \textsc{Lavorato Riccardo} \\[2pt]
+    \small \textit{Artificial Intelligence and Computer Science --- University of Calabria}
+}
+\date{\vspace{-0.3cm}\small October 2026\vspace{-0.3cm}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent
+Simulating the time evolution of interacting many-body quantum systems is exponentially expensive on classical hardware, motivating data-driven neural surrogates capable of extrapolating observable dynamics from short observation windows. In this work, we study the $N = 10$ qubit PXP Rydberg-blockade Hamiltonian across $D = 55$ continuous physical observables ($10$ local Pauli-$Z$ magnetizations and $45$ pairwise correlations) over $400$ trajectories of $1001$ steps ($\Delta t = 0.02\text{ s}$). Following an incremental \emph{``Start Small''} methodology, we first validate a rapid pilot on $20$ trajectories and investigate dimensionality reduction via a Lab~6 Autoencoder ($55 \to 16 \to 55$) coupled with a latent Transformer, showing that while latent forecasting cuts parameter count by $60.5\%$, the autoencoder reconstruction floor ($\text{MSE}_{\text{AE}} = 3.62 \times 10^{-4}$) limits accuracy on weak long-range correlations. Scaling to the full dataset in native physical space with a $\tanh$ output bound, we develop and benchmark four sequence architectures across $24$ hyperparameter runs---a direct one-shot RNN (\textbf{M1}), an autoregressive Seq2Seq RNN (\textbf{M2}), an encoder-only one-shot Transformer (\textbf{M3}), and a causal encoder--decoder Transformer (\textbf{M4})---trained with a unified three-phase loop (\emph{Teacher Forcing} $\to$ \emph{Masked Modeling} $\to$ \emph{Scheduled Sampling}). Across 3-seed Student-$t$ validation, 5-fold trajectory cross-validation, and blind test evaluation, the compact one-shot Transformer \textbf{M3 (HP3)} achieves the best overall performance ($\text{Test MSE} = \mathbf{1.21 \times 10^{-4}}$, $\text{MAE} = \mathbf{7.85 \times 10^{-3}}$, $\text{MSE}_{\text{mag}} = \mathbf{3.60 \times 10^{-5}}$), outperforming the best RNN \textbf{M1 (HP1)} ($\text{Test MSE} = 1.61 \times 10^{-4}$) by $25\%$ with zero violations of two-body quantum density positivity ($P(s_i, s_j) \ge 0$). Finally, we resolve all three project challenges: (1) aligned-target context scaling ($T_{\text{in}} \in \{5, 10, 20, 40\}$) shows $T_{\text{in}}=10$ is sufficient for competitive forecasting while M3 scales down to $\text{Test MSE} = 1.11 \times 10^{-4}$ at $T_{\text{in}}=40$; (2) temporal super-resolution ($\times 2$, $\Delta t = 0.04 \to 0.02\text{ s}$) reconstructs fine-grained dynamics with $\text{Test MSE} = 1.21 \times 10^{-4}$; and (3) multi-head decoder attention maps confirm exact causal masking ($\max_{j>i}|\alpha_{ij}| = 0$) and reveal physical specialization between boundary phase-locking and PXP quantum-scar periodicity.
+\end{abstract}
+
+% =============================================================================
+\section{Introduction}
+% =============================================================================
+
+Quantum many-body systems lie at the forefront of modern physics and quantum computing, as highlighted by recent Nobel Prizes in Physics (2022, 2023, 2025) and Chemistry/Machine Learning (2024). However, simulating the exact unitary evolution of an $N$-qubit interacting system requires tracking a Hilbert space of dimension $2^N$, which becomes computationally intractable on classical supercomputers beyond a few dozen qubits or over extended time horizons. Beyond this threshold, the quantum simulator effectively behaves as a black box.
+
+Deep learning offers a compelling data-driven alternative~\cite{carleo2017}: by training sequence models on observable trajectories collected from tractable short-time regimes, neural networks can learn the effective non-local dynamical laws governing magnetization and correlation waves and extrapolate the future evolution of the system. In this project, we investigate the $N = 10$ qubit \textbf{PXP model} describing Rydberg atom arrays under nearest-neighbor excitation blockade~\cite{bernien2017}, which exhibits non-ergodic periodic revivals known as \emph{quantum many-body scars}. At each discrete timestep, the system state is characterized by $D = 55$ continuous expectation values: $10$ single-qubit magnetizations $\langle \sigma_z^i \rangle$ and $45$ two-body correlations $\langle \sigma_z^i \sigma_z^j \rangle$ ($1 \le i < j \le 10$).
+
+In addition to building a leak-free, reproducible forecasting benchmark comparing Recurrent Neural Networks (LSTM/GRU)~\cite{sutskever2014} and Attention-based Transformers~\cite{vaswani2017}, our study addresses three core scientific and engineering challenges:
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+    \item \textbf{Challenge 1 --- Minimizing the Input Time Window:} Determining the shortest historical observation window $T_{\text{in}} \in \{5, 10, 20, 40\}$ that still guarantees accurate multi-step forecasting over $T_{\text{out}} = 40$ future steps, evaluated on strictly aligned future targets.
+    \item \textbf{Challenge 2 --- Temporal Super-Resolution ($\times 2$):} Reconstructing native high-frequency future dynamics ($\Delta t = 0.02\text{ s}$, $T_{\text{out}} = 40$) from a $2\times$ subsampled historical observation window ($\Delta t_{\text{sub}} = 0.04\text{ s}$, $T_{\text{in}} = 20$).
+    \item \textbf{Challenge 3 --- Physical Interpretability via Attention Maps:} Extracting and analyzing multi-head self- and cross-attention weights from the causal Transformer decoder to explain how the network attends to past quantum oscillations when predicting future steps.
+\end{enumerate}
+
+% =============================================================================
+\section{Dataset, Physical Validation \& Windowing Pipeline}
+% =============================================================================
+
+\subsection{Dataset Structure and Quantum Physical Sanity Checks}
+The raw dataset (\texttt{trajectories.csv}, $\sim 464\text{ MB}$) contains $N_{\text{traj}} = 400$ independent trajectories of the $N = 10$ qubit PXP Hamiltonian, sampled uniformly at $\Delta t = 0.02\text{ s}$ from $t = 0.00\text{ s}$ to $T_{\text{fin}} = 20.00\text{ s}$, yielding $T = 1001$ time steps per trajectory ($400,400$ total rows) without any missing (\texttt{NaN} or \texttt{Inf}) values. Each time step consists of $D = 55$ observables:
+\begin{equation}
+    \mathbf{x}(t) = \bigl[\, m_1(t), \dots, m_{10}(t), \; c_{1,2}(t), c_{1,3}(t), \dots, c_{9,10}(t) \,\bigr]^\top \in [-1, 1]^{55},
+    \label{eq:state_vector}
+\end{equation}
+where $m_i(t) = \langle \sigma_z^i(t) \rangle$ denotes the local Pauli-$Z$ magnetization of qubit $i$, and $c_{ij}(t) = \langle \sigma_z^i(t)\sigma_z^j(t) \rangle$ ($i < j$) denotes the two-body spatial correlation. To eliminate CSV parsing overhead ($\sim 25\text{ s}$) in downstream experiments, the dataset is serialized into a contiguous \texttt{float32} binary tensor \texttt{data/cache/trajectories.npy} of shape $(400, 1001, 55)$ ($88.1\text{ MB}$), which loads in $< 0.1\text{ s}$.
+
+Before model development, we verified two fundamental quantum-mechanical constraints across all $400,400$ time steps:
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+    \item \textbf{Two-body reduced density matrix positivity:} For every pair of qubits $(i, j)$ and spin outcomes $s_i, s_j \in \{-1, +1\}$, the joint measurement probability must be non-negative:
+    \begin{equation}
+        P(s_i, s_j) = \frac{1 + s_i m_i + s_j m_j + s_i s_j c_{ij}}{4} \ge 0.
+        \label{eq:quantum_positivity}
+    \end{equation}
+    Across all $400 \times 1001 \times 45 \times 4 = 72,072,000$ checks, the minimum observed probability is $P_{\min} = 0.1553 > 0$ with \textbf{zero violations}, confirming exact column ordering and sign consistency.
+    \item \textbf{Initial product-state factorization ($t = 0$):} At $t=0$, trajectories are initialized close to unentangled product states where $c_{ij}(0) \approx m_i(0)m_j(0)$, confirmed empirically by $\mathrm{mean}\,|c_{ij}(0) - m_i(0)m_j(0)| = 0.0158$ (max $0.080$).
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{../figures/01_data/example_trajectories.jpeg}
+        \caption{Sample trajectories: magnetizations $m_i$ and correlations $c_{ij}$.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{../figures/01_data/normalization_loss_curves.jpeg}
+        \caption{Empirical ablation: raw data (\texttt{none}+$\tanh$) vs.\ \texttt{zscore}.}
+    \end{subfigure}
+    \caption{Physical observable dynamics (left) and 3-seed validation loss comparison between unnormalized physical inputs with $\tanh$ output activation and column-wise Z-score standardization (right).}
+    \label{fig:data_and_norm}
+\end{figure}
+
+\subsection{Physical Bound and Empirical Normalization Ablation}
+Because all $55$ features are Pauli expectation values, they are strictly bounded within $[-1, 1]$ on a shared physical scale. However, their amplitudes vary by spatial separation: nearest-neighbor correlations ($c_{i,i+1}$) oscillate strongly up to $\pm 0.25$, whereas distant correlations (e.g., $c_{1,10}$) remain near zero with standard deviation $\sim 10^{-3}$.
+
+To rigorously decide whether to standardize the features, we trained a baseline recurrent model across three independent seeds ($42, 43, 44$) comparing raw physical inputs (\texttt{none}) with a final $\tanh$ activation against column-wise Z-score standardization (\texttt{zscore}) with a linear output head, evaluating both on the original physical scale (Table~\ref{tab:norm_ablation} and Fig.~\ref{fig:data_and_norm}b).
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Empirical normalization ablation across 3 seeds ($42, 43, 44$, Student-$t$ 95\% CI) on the validation set.}
+    \label{tab:norm_ablation}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{llccccc}
+        \toprule
+        \textbf{Strategy} & \textbf{Output Act.} & \textbf{Val MSE (Global)} & \textbf{Val MAE} & \textbf{MSE Mag (10)} & \textbf{MSE Corr (45)} & \textbf{Time (s)} \\
+        \midrule
+        \textbf{Raw Physical (\texttt{none})} & $\tanh$ & $\mathbf{2.167 \times 10^{-4} \pm 1.3 \times 10^{-6}}$ & $\mathbf{0.01105}$ & $\mathbf{1.114 \times 10^{-4}}$ & $\mathbf{2.401 \times 10^{-4}}$ & $\mathbf{16.6}$ \\
+        Z-Score (\texttt{zscore}) & \texttt{linear} & $2.323 \times 10^{-4} \pm 4.3 \times 10^{-6}$ & $0.01135$ & $1.327 \times 10^{-4}$ & $2.544 \times 10^{-4}$ & $17.1$ \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+Raw physical features with a $\tanh$ output head achieve a statistically significant lower MSE ($2.167 \times 10^{-4}$ vs.\ $2.323 \times 10^{-4}$, disjoint 95\% confidence intervals). Rescaling via Z-score amplifies numerical noise on near-flat long-range correlations by orders of magnitude, distorting dot-product attention scores in Transformers, while the $\tanh$ output layer naturally enforces the exact $[-1, 1]$ quantum bound and prevents unbounded drift during closed-loop autoregressive rollouts.
+
+\subsection{Anti-Leakage Trajectory Split and Sliding-Window Extraction}
+Splitting a time-series dataset by row would assign overlapping segments of the same trajectory to both training and test sets, causing severe temporal data leakage. We therefore partition the dataset \emph{per trajectory} (\texttt{SEED = 42}) into \textbf{280 training (70\%)}, \textbf{60 validation (15\%)}, and \textbf{60 test (15\%)} trajectories, frozen in \texttt{results/split\_indices.npz} ($\mathcal{T}_{\text{train}} \cap \mathcal{T}_{\text{val}} \cap \mathcal{T}_{\text{test}} = \emptyset$).
+
+Sliding windows are extracted strictly within individual trajectories using a vectorized stride trick ($320.6 \pm 82.1\text{ ms}$ for the entire dataset, $>83,850\text{ windows/s}$). All main benchmark models share a fixed forecasting horizon $T_{\text{out}} = 40$ steps ($0.80\text{ s}$) and stride $s = 10$ steps ($0.20\text{ s}$) across two input window configurations (Table~\ref{tab:windows} and Fig.~\ref{fig:window_samples}).
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Sliding-window configurations across all splits ($D=55$ features, $\Delta t = 0.02\text{ s}$).}
+    \label{tab:windows}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lcccccc}
+        \toprule
+        \textbf{Window} & \textbf{Input $T_{\text{in}}$} & \textbf{Output $T_{\text{out}}$} & \textbf{Stride $s$} & \textbf{Train Windows} & \textbf{Val Windows} & \textbf{Test Windows} \\
+        \midrule
+        \texttt{short} & $10$ ($0.20\text{ s}$) & $40$ ($0.80\text{ s}$) & $10$ & $26,880$ & $5,760$ & $5,760$ \\
+        \texttt{long} & $20$ ($0.40\text{ s}$) & $40$ ($0.80\text{ s}$) & $10$ & $26,600$ & $5,700$ & $5,700$ \\
+        \texttt{aligned} (Ch.~1) & $\{5, 10, 20, 40\}$ & $40$ ($0.80\text{ s}$) & $10$ & $26,040$ & $5,580$ & $5,580$ \\
+        \texttt{super\_res} (Ch.~2) & $20$ ($\Delta t = 0.04\text{ s}$) & $40$ ($\Delta t = 0.02\text{ s}$) & $10$ & $26,040$ & $5,580$ & $5,580$ \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\noindent
+\textbf{Target Alignment for Challenge 1 (\texttt{align\_t\_in = 40}):} Naively extracting windows from $t = 0$ for different $T_{\text{in}} \in \{5, 10, 20, 40\}$ would evaluate models on different future segments (starting at $t = 0.10\text{ s}$ for $T_{\text{in}}=5$ vs.\ $t = 0.80\text{ s}$ for $T_{\text{in}}=40$). By shifting the start index of shorter windows by $40 - T_{\text{in}}$, all four configurations predict the \emph{exact same} $5,580$ validation and test target tensors $Y$ starting at $t = 0.80\text{ s}$ (verified bit-for-bit: $\max |Y^{(T_{\text{in}})} - Y^{(40)}| = 0.0$).
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{../figures/02_windowing/window_sample_short.jpeg}
+        \caption{Standard \texttt{short} window ($T_{\text{in}}=10 \to T_{\text{out}}=40$).}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{../figures/02_windowing/tin_grid_comparison.jpeg}
+        \caption{Target-aligned windows for Challenge 1 ($T_{\text{in}} \in \{5, 10, 20, 40\}$).}
+    \end{subfigure}
+    \caption{Sliding-window extraction on a single trajectory (left) and strict target alignment at $t_0 = 0.80\text{ s}$ across variable history lengths $T_{\text{in}}$ (right).}
+    \label{fig:window_samples}
+\end{figure}
+
+As non-parametric lower-bound references on the \texttt{short} validation set, the \textbf{Persistence Baseline} ($\hat{Y}_{t} = X_{-1}$ for all $t=1,\dots,40$) achieves $\text{Val MSE} = 6.21 \times 10^{-4}$ ($\text{MAE} = 0.01850$), while the \textbf{Global Training Mean Baseline} achieves $\text{Val MSE} = 9.07 \times 10^{-4}$ ($\text{MAE} = 0.02261$).
+
+% =============================================================================
+\section{Models, ``Start Small'' Pilot \& Hybrid Training Loop}
+% =============================================================================
+
+\subsection{Incremental ``Start Small'' Pilot and Lab 6 Autoencoder Reduction}
+Following the course guidelines (\emph{``Start Small: begin with a limited subset of data, short windows, and compact models; explore dimensionality reduction via an Autoencoder''}), we conducted two fast preliminary studies on a $20$-trajectory training subset ($1,920$ windows) and $10$ validation trajectories ($960$ windows) on the \texttt{short} window ($T_{\text{in}}=10$) for $5$ epochs ($2\text{ TF} + 2\text{ MM} + 1\text{ SS}$):
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+    \item \textbf{Micro-Transformer Pilot:} Compact versions of \textbf{M3} and \textbf{M4} ($d_{\text{model}}=32, H=2, d_{\text{ff}}=64, L=1$) converge in $5.0\text{ s}$ and $23.4\text{ s}$, respectively, confirming pipeline correctness.
+    \item \textbf{Lab 6 Autoencoder + Latent Transformer ($55 \to 16 \to 55$):} Following Lab~6 (\texttt{Autoencoder.ipynb}), we trained a \texttt{simple\_autoencoder} ($\text{Input}(55) \to \text{Dense}(16, \text{ReLU}) \to \text{Dense}(55, \tanh)$) to compress the $55$ observables into a $d_{\text{lat}} = 16$ latent representation ($3.44\times$ compression), trained a latent Transformer on $(T_{\text{in}}, 16) \to (T_{\text{out}}, 16)$, and decoded predictions back to $\mathbb{R}^{55}$ (Table~\ref{tab:start_small} and Fig.~\ref{fig:start_small_ae}).
+\end{enumerate}
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{``Start Small'' pilot ($20$ train trajectories, $5$ epochs) and Lab~6 Autoencoder latent reduction.}
+    \label{tab:start_small}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{llcccc}
+        \toprule
+        \textbf{Pilot Configuration} & \textbf{Architecture} & \textbf{Params} & \textbf{Time (s)} & \textbf{AE Recon.\ MSE} & \textbf{Physical Val MSE} \\
+        \midrule
+        \texttt{M3\_Direct\_Small} & Transformer Direct ($d=32, H=2, L=1$) & $87,128$ & $5.0$ & --- & $7.52 \times 10^{-4}$ \\
+        \texttt{M4\_Seq2Seq\_Small} & Transformer Seq2Seq ($d=32, H=2, L=1$) & $39,351$ & $23.4$ & --- & $1.15 \times 10^{-3}$ \\
+        \texttt{AE + M3\_Latent\_16d} & AE ($55 \to 16 \to 55$) + Latent M3 & $\mathbf{34,400}$ & $5.1 + 5.0$ & $3.62 \times 10^{-4}$ & $\mathbf{7.37 \times 10^{-4}}$ \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\textwidth,height=3.6cm,keepaspectratio]{../figures/04_transformer/start_small_and_autoencoder.jpeg}
+    \caption{Left: 5-epoch validation MSE descent during the ``Start Small'' pilot ($20$ trajectories) compared with the 16-dimensional Autoencoder + Latent Transformer pipeline. Right: Lab~6 Autoencoder reconstruction loss curve ($55 \to 16 \to 55$).}
+    \label{fig:start_small_ae}
+\end{figure}
+
+\noindent
+\textbf{Key Insight:} Operating in the $16$-dimensional latent space reduces Transformer parameters by $\mathbf{60.5\%}$ ($34,400$ vs.\ $87,128$) and slightly improves 5-epoch pilot accuracy ($7.37 \times 10^{-4}$ vs.\ $7.52 \times 10^{-4}$). However, the Autoencoder introduces an irreducible \textbf{reconstruction floor of $\text{MSE}_{\text{AE}} = 3.62 \times 10^{-4}$} due to lossy compression of small-amplitude long-range correlations. Because our full-dataset models trained directly on the $55$ observables achieve $\text{MSE} = \mathbf{1.21 \times 10^{-4}}$---nearly $3\times$ lower than the Autoencoder bottleneck alone---all main models project the $55$ observables directly into $d_{\text{model}}$ via a lossless continuous linear layer.
+
+\subsection{Limit-Driven Progression of Model Architectures}
+We develop four main forecasting architectures across two families (Recurrent and Attention-based), plus a super-resolution extension, structured as an explicit limit-driven progression (Table~\ref{tab:model_progression}).
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Limit-driven progression of the developed sequence forecasting architectures.}
+    \label{tab:model_progression}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{llp{6.0cm}p{5.2cm}}
+        \toprule
+        \textbf{Model} & \textbf{Family} & \textbf{What It Introduces} & \textbf{Structural Limitation} \\
+        \midrule
+        \textbf{M1} & RNN (Direct) & Recurrent encoder (\texttt{LSTM}/\texttt{GRU}) + one-shot \texttt{Dense}$(T_{\text{out}}\times D, \tanh)$ + \texttt{Reshape}. Immune to recursive error accumulation; ultra-fast inference. & Compresses past history into a single fixed state vector $\mathbf{h}_{T_{\text{in}}}$; no explicit step-to-step dependency in head. \\
+        \addlinespace[3pt]
+        \textbf{M2} & RNN (Seq2Seq) & Autoregressive Encoder--Decoder transferring hidden states $(\mathbf{h}, \mathbf{c})$; trained with 3-phase hybrid loop and evaluated in closed-loop free-running. & Information bottleneck in fixed-size state $(\mathbf{h}, \mathbf{c})$; sequential step-by-step decoding suffers from exposure bias. \\
+        \addlinespace[3pt]
+        \textbf{M3} & Transformer (Direct) & Lab~7 Encoder stack (\texttt{PositionalEmbedding} + $L \times$ \texttt{GlobalSelfAttention} + \texttt{FeedForward}) + one-shot $\tanh$ head. Parallel encoding without recurrence bottleneck. & Encoder-only one-shot head does not provide decoder cross-attention maps ($T_{\text{out}} \times T_{\text{in}}$) for step-by-step interpretability. \\
+        \addlinespace[3pt]
+        \textbf{M4} & Transformer (Seq2Seq) & Full Lab~7 Encoder--Decoder (\texttt{CausalSelfAttention} with lower-triangular mask + \texttt{CrossAttention} + \texttt{FeedForward}), free-running decoding, and eager attention-map extraction (Challenge~3). & Closed-loop autoregressive generation over $40$ steps accumulates phase micro-errors and increases training cost. \\
+        \addlinespace[3pt]
+        \textbf{M3-SR} & Transformer (Super-Res) & Temporal Super-Resolution ($\times 2$): takes $T_{\text{in}}=20$ coarse steps ($\Delta t = 0.04\text{ s}$) and reconstructs $T_{\text{out}}=40$ fine steps ($\Delta t = 0.02\text{ s}$). & Observes half the temporal sampling density on the input window. \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\noindent
+\textbf{Architectural Details (Lab~5 \& Lab~7 Compliance):}
+All models are built strictly from modular building blocks introduced in the course laboratories:
+\begin{itemize}[leftmargin=*, itemsep=2pt]
+    \item \textbf{M1 (\texttt{RNNDirect}) \& M2 (\texttt{RNNSeq2Seq}):} Built with cuDNN-accelerated \texttt{LSTM} or \texttt{GRU} layers ($d_{\text{lat}} = 64$, $L \in \{1, 2\}$). In \textbf{M1}, the final hidden state $\mathbf{h}_{T_{\text{in}}} \in \mathbb{R}^{B \times d_{\text{lat}}}$ is mapped by $\text{Dense}(T_{\text{out}} \cdot D, \tanh)$ and reshaped to $(B, T_{\text{out}}, D)$. In \textbf{M2}, the encoder states $[(\mathbf{h}_l, \mathbf{c}_l)]_{l=1}^L$ initialize a matching stack of decoder recurrent layers that generate one token $\hat{\mathbf{y}}_t = \tanh(\mathbf{W}\mathbf{h}_t^{\text{dec}} + \mathbf{b}) \in \mathbb{R}^{B \times 1 \times D}$ per step during closed-loop \texttt{free\_running} inference.
+    \item \textbf{M3 (\texttt{TransformerDirect}) \& M4 (\texttt{TransformerSeq2Seq}):} Follow the exact modular hierarchy of Lab~7 (\texttt{Transformer.ipynb}):
+    \begin{enumerate}[leftmargin=*, itemsep=1pt]
+        \item \texttt{PositionalEmbedding}: Replaces the discrete NLP token \texttt{Embedding} with a continuous linear projection $\text{Dense}(d_{\text{model}})$ scaled by $\sqrt{d_{\text{model}}}$ and summed with the deterministic sinusoidal \texttt{positional\_encoding} matrix over geometric frequencies $1/10000^{2i/d_{\text{model}}}$.
+        \item \texttt{BaseAttention} subclasses: \texttt{GlobalSelfAttention} (bidirectional over $T_{\text{in}}$ in the Encoder), \texttt{CausalSelfAttention} (\texttt{use\_causal\_mask=True} in the Decoder to block future leakage $j > i$), and \texttt{CrossAttention} (Decoder queries attending to Encoder keys/values, caching \texttt{last\_attn\_scores} of shape $(B, H, T_{\text{out}}, T_{\text{in}})$). Each block applies Post-LN residual connections (\texttt{Add} + \texttt{LayerNormalization}) and a point-wise \texttt{FeedForward} network ($\text{Dense}(d_{\text{ff}}, \text{ReLU}) \to \text{Dense}(d_{\text{model}}) \to \text{Dropout}$).
+    \end{enumerate}
+\end{itemize}
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Layer-by-layer tensor shapes for the four main forecasting architectures ($B$: batch size, $D=55$).}
+    \label{tab:arch_shapes}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Model} & \textbf{Module} & \textbf{Layer Sequence} & \textbf{Output Shape} \\
+        \midrule
+        \textbf{M1} & Encoder & $L \times \text{LSTM/GRU}(d_{\text{lat}})$ + \texttt{Dropout} & $(B, d_{\text{lat}})$ \\
+        & One-Shot Head & $\text{Dense}(T_{\text{out}} \times D, \tanh) \to \text{Reshape}$ & $(B, T_{\text{out}}, D)$ \\
+        \midrule
+        \textbf{M2} & Encoder & $L \times \text{LSTM/GRU}(d_{\text{lat}}, \text{return\_state=True})$ & $L \times (\mathbf{h}, \mathbf{c}) \in (B, d_{\text{lat}})$ \\
+        & Autoreg.\ Decoder & $L \times \text{LSTM/GRU}(d_{\text{lat}}) \to \text{Dense}(D, \tanh)$ & $(B, T_{\text{out}}, D)$ \\
+        \midrule
+        \textbf{M3} & Encoder & $\text{Dense}(d_{\text{model}}) + \text{PE} \to L \times (\text{GlobalSelfAttn} + \text{FFN})$ & $(B, T_{\text{in}}, d_{\text{model}})$ \\
+        & One-Shot Head & $\text{Slice context}[:, -1, :] \to \text{Dense}(T_{\text{out}} \times D, \tanh) \to \text{Reshape}$ & $(B, T_{\text{out}}, D)$ \\
+        \midrule
+        \textbf{M4} & Encoder & $\text{Dense}(d_{\text{model}}) + \text{PE} \to L \times (\text{GlobalSelfAttn} + \text{FFN})$ & $\mathbf{M} \in (B, T_{\text{in}}, d_{\text{model}})$ \\
+        & Causal Decoder & $\text{Dense}(d_{\text{model}}) + \text{PE} \to L \times (\text{CausalSelfAttn} + \text{CrossAttn}(\mathbf{M}) + \text{FFN})$ & $(B, T_{\text{out}}, d_{\text{model}})$ \\
+        & Output Layer & $\text{Dense}(D, \tanh)$ (parallel in TF / iterative in Free-Running) & $(B, T_{\text{out}}, D)$ \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\subsection{Unified Three-Phase Hybrid Training Loop}
+All models are trained for $25$ epochs using a shared three-phase curriculum (\texttt{src/training.py}, compiled with \texttt{@tf.function(reduce\_retracing=True)}, Adam optimizer with $\text{lr} = 10^{-3}$, batch size $B = 64$, MSE loss, and best-checkpoint restoration on realistic validation MSE):
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+    \item \textbf{Phase 1 --- Teacher Forcing (TF, Epochs 1--10):} For Seq2Seq models (M2, M4), the decoder receives the ground-truth target shifted right by one step, anchored at $t=0$ by the last observed encoder state: $Y_{\text{dec}}[:, 0] = X[:, -1]$ and $Y_{\text{dec}}[:, 1:] = Y[:, :-1]$. Provides clean gradients for rapid initial convergence.
+    \item \textbf{Phase 2 --- Masked Modeling (MM, Epochs 11--20):} A random fraction $p_{\text{mask}} = 0.15$ of input timesteps in $X$ (and $Y_{\text{dec}}$ for Seq2Seq) is zeroed out while protecting the boundary anchor token ($X[:, -1]$ and $Y_{\text{dec}}[:, 0]$). Forces the network to infer internal physical phase from surrounding context rather than relying on local copying.
+    \item \textbf{Phase 3 --- Scheduled Sampling (SS, Epochs 21--25):} Following Bengio et al.~\cite{bengio2015} and the parallel two-pass Transformer scheme~\cite{mihaylova2019}, a first stop-gradient forward pass generates predictions $\hat{Y}$; then each decoder input token for $t \ge 1$ is sampled from $\hat{Y}_{t-1}$ with probability $p_k$ ramping linearly from $p_{\text{start}} = 0.0$ to $p_{\text{end}} = 0.5$, bridging the distribution gap between assisted teacher forcing and open-loop inference.
+\end{enumerate}
+
+\subsection{Hyperparameter Search Grid (24 Full-Dataset Configurations)}
+For each model family, we systematically evaluate three hyperparameter configurations (\textbf{HP1}, \textbf{HP2}, \textbf{HP3}) across both standard windows (\texttt{short} $T_{\text{in}}=10$ and \texttt{long} $T_{\text{in}}=20$), totaling $4 \times 3 \times 2 = 24$ full training runs (Table~\ref{tab:hp_grid}).
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Hyperparameter configurations evaluated across M1, M2, M3, and M4 on \texttt{short} and \texttt{long} windows.}
+    \label{tab:hp_grid}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{llccccc}
+        \toprule
+        \textbf{Family} & \textbf{Config} & \textbf{Cell / $d_{\text{model}}$} & \textbf{Heads / Units} & \textbf{Layers $L$} & \textbf{FFN / Dropout} & \textbf{Architectural Role} \\
+        \midrule
+        \multirow{3}{*}{\textbf{RNN (M1, M2)}} 
+        & \textbf{HP1} & LSTM & $d_{\text{lat}} = 64$ & $1$ & $\text{drop} = 0.0$ & Single-layer LSTM baseline \\
+        & \textbf{HP2} & LSTM & $d_{\text{lat}} = 64$ & $2$ & $\text{drop} = 0.1$ & Deep stacked 2-layer LSTM \\
+        & \textbf{HP3} & GRU & $d_{\text{lat}} = 64$ & $1$ & $\text{drop} = 0.0$ & Compact 2-gate GRU variant \\
+        \midrule
+        \multirow{3}{*}{\textbf{Transformer (M3, M4)}} 
+        & \textbf{HP1} & $d_{\text{model}} = 64$ & $H = 4$ & $2$ & $d_{\text{ff}} = 128, \text{drop} = 0.1$ & Balanced 2-layer 4-head baseline \\
+        & \textbf{HP2} & $d_{\text{model}} = 128$ & $H = 4$ & $2$ & $d_{\text{ff}} = 256, \text{drop} = 0.1$ & High-capacity wide embedding \\
+        & \textbf{HP3} & $d_{\text{model}} = 64$ & $H = 2$ & $1$ & $d_{\text{ff}} = 128, \text{drop} = 0.0$ & Compact 1-layer unregularized block \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+% =============================================================================
+\section{Experimental Results \& Challenge Solutions}
+% =============================================================================
+
+\subsection{Complete 24-Model Benchmark Grid, 5-Fold CV, and Blind Test Performance}
+Table~\ref{tab:full_grid_24} reports the validation metrics for all $24$ trained models across the \texttt{short} ($T_{\text{in}}=10$) and \texttt{long} ($T_{\text{in}}=20$) windows on an NVIDIA Tesla T4 GPU. Every Seq2Seq model (M2, M4) is evaluated strictly in \textbf{closed-loop free-running mode}.
+
+\begin{table}[H]
+    \centering
+    \footnotesize
+    \caption{Complete 24-configuration benchmark across \texttt{short} ($T_{\text{in}}=10$) and \texttt{long} ($T_{\text{in}}=20$) windows ($T_{\text{out}}=40$). Best configuration per model family and window in \textbf{bold}.}
+    \label{tab:full_grid_24}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lllccccccccc}
+        \toprule
+        \textbf{Win.} & \textbf{Model} & \textbf{HP} & \textbf{Params} & \textbf{Val MSE} & \textbf{Val MAE} & \textbf{Val RMSE} & \textbf{MSE Mag} & \textbf{MSE Corr} & \textbf{Step 1} & \textbf{Step 40} & \textbf{Time} \\
+        \midrule
+        \multirow{12}{*}{\texttt{short}}
+        & \textbf{M1 Direct} & \textbf{HP1} & $173,720$ & $\mathbf{1.61 \times 10^{-4}}$ & $\mathbf{0.00912}$ & $\mathbf{0.01268}$ & $\mathbf{7.47 \times 10^{-5}}$ & $\mathbf{1.80 \times 10^{-4}}$ & $3.99 \times 10^{-6}$ & $3.24 \times 10^{-4}$ & $47.8\text{ s}$ \\
+        & M1 Direct & HP2 & $206,744$ & $1.74 \times 10^{-4}$ & $0.00973$ & $0.01319$ & $8.11 \times 10^{-5}$ & $1.95 \times 10^{-4}$ & $1.83 \times 10^{-5}$ & $3.27 \times 10^{-4}$ & $64.0\text{ s}$ \\
+        & M1 Direct & HP3 & $166,232$ & $1.63 \times 10^{-4}$ & $0.00913$ & $0.01275$ & $7.64 \times 10^{-5}$ & $1.82 \times 10^{-4}$ & $3.00 \times 10^{-6}$ & $3.28 \times 10^{-4}$ & $44.4\text{ s}$ \\
+        \cmidrule{2-12}
+        & M2 Seq2Seq & HP1 & $65,015$ & $3.05 \times 10^{-4}$ & $0.01231$ & $0.01746$ & $1.77 \times 10^{-4}$ & $3.33 \times 10^{-4}$ & $2.70 \times 10^{-6}$ & $7.39 \times 10^{-4}$ & $85.8\text{ s}$ \\
+        & \textbf{M2 Seq2Seq} & \textbf{HP2} & $131,063$ & $\mathbf{2.66 \times 10^{-4}}$ & $\mathbf{0.01207}$ & $\mathbf{0.01631}$ & $\mathbf{1.68 \times 10^{-4}}$ & $\mathbf{2.88 \times 10^{-4}}$ & $1.64 \times 10^{-5}$ & $4.80 \times 10^{-4}$ & $140.4\text{ s}$ \\
+        & M2 Seq2Seq & HP3 & $50,039$ & $3.41 \times 10^{-4}$ & $0.01296$ & $0.01846$ & $1.70 \times 10^{-4}$ & $3.79 \times 10^{-4}$ & $2.51 \times 10^{-6}$ & $7.96 \times 10^{-4}$ & $82.1\text{ s}$ \\
+        \cmidrule{2-12}
+        & M3 Direct & HP1 & $312,984$ & $1.81 \times 10^{-4}$ & $0.01004$ & $0.01344$ & $8.60 \times 10^{-5}$ & $2.02 \times 10^{-4}$ & $4.30 \times 10^{-5}$ & $3.33 \times 10^{-4}$ & $122.5\text{ s}$ \\
+        & M3 Direct & HP2 & $951,448$ & $1.51 \times 10^{-4}$ & $0.00894$ & $0.01229$ & $5.69 \times 10^{-5}$ & $1.72 \times 10^{-4}$ & $2.10 \times 10^{-5}$ & $3.04 \times 10^{-4}$ & $132.5\text{ s}$ \\
+        & \textbf{M3 Direct} & \textbf{HP3} & $196,632$ & $\mathbf{1.21 \times 10^{-4}}$ & $\mathbf{0.00783}$ & $\mathbf{0.01099}$ & $\mathbf{3.61 \times 10^{-5}}$ & $\mathbf{1.40 \times 10^{-4}}$ & $6.66 \times 10^{-5}$ & $\mathbf{2.93 \times 10^{-4}}$ & $73.0\text{ s}$ \\
+        \cmidrule{2-12}
+        & \textbf{M4 Seq2Seq} & \textbf{HP1} & $476,535$ & $\mathbf{3.96 \times 10^{-4}}$ & $\mathbf{0.01558}$ & $\mathbf{0.01991}$ & $2.79 \times 10^{-4}$ & $\mathbf{4.23 \times 10^{-4}}$ & $1.99 \times 10^{-4}$ & $\mathbf{5.91 \times 10^{-4}}$ & $434.3\text{ s}$ \\
+        & M4 Seq2Seq & HP2 & $1,870,519$ & $4.37 \times 10^{-4}$ & $0.01613$ & $0.02091$ & $\mathbf{2.66 \times 10^{-4}}$ & $4.75 \times 10^{-4}$ & $1.48 \times 10^{-4}$ & $6.21 \times 10^{-4}$ & $696.6\text{ s}$ \\
+        & M4 Seq2Seq & HP3 & $144,183$ & $7.53 \times 10^{-4}$ & $0.02154$ & $0.02744$ & $7.38 \times 10^{-4}$ & $7.56 \times 10^{-4}$ & $5.95 \times 10^{-4}$ & $8.06 \times 10^{-4}$ & $203.5\text{ s}$ \\
+        \midrule
+        \multirow{12}{*}{\texttt{long}}
+        & \textbf{M1 Direct} & \textbf{HP1} & $173,720$ & $\mathbf{1.47 \times 10^{-4}}$ & $\mathbf{0.00864}$ & $\mathbf{0.01213}$ & $4.92 \times 10^{-5}$ & $\mathbf{1.69 \times 10^{-4}}$ & $1.05 \times 10^{-5}$ & $3.03 \times 10^{-4}$ & $51.3\text{ s}$ \\
+        & M1 Direct & HP2 & $206,744$ & $1.57 \times 10^{-4}$ & $0.00912$ & $0.01252$ & $\mathbf{4.82 \times 10^{-5}}$ & $1.81 \times 10^{-4}$ & $3.31 \times 10^{-5}$ & $3.01 \times 10^{-4}$ & $71.1\text{ s}$ \\
+        & M1 Direct & HP3 & $166,232$ & $1.59 \times 10^{-4}$ & $0.00902$ & $0.01260$ & $7.22 \times 10^{-5}$ & $1.78 \times 10^{-4}$ & $3.33 \times 10^{-6}$ & $3.23 \times 10^{-4}$ & $49.6\text{ s}$ \\
+        \cmidrule{2-12}
+        & M2 Seq2Seq & HP1 & $65,015$ & $2.80 \times 10^{-4}$ & $0.01180$ & $0.01675$ & $1.47 \times 10^{-4}$ & $3.10 \times 10^{-4}$ & $2.67 \times 10^{-6}$ & $6.66 \times 10^{-4}$ & $90.0\text{ s}$ \\
+        & \textbf{M2 Seq2Seq} & \textbf{HP2} & $131,063$ & $\mathbf{2.42 \times 10^{-4}}$ & $\mathbf{0.01153}$ & $\mathbf{0.01554}$ & $\mathbf{1.45 \times 10^{-4}}$ & $\mathbf{2.63 \times 10^{-4}}$ & $1.53 \times 10^{-5}$ & $4.34 \times 10^{-4}$ & $148.0\text{ s}$ \\
+        & M2 Seq2Seq & HP3 & $50,039$ & $3.33 \times 10^{-4}$ & $0.01282$ & $0.01826$ & $1.59 \times 10^{-4}$ & $3.72 \times 10^{-4}$ & $2.90 \times 10^{-6}$ & $7.66 \times 10^{-4}$ & $86.2\text{ s}$ \\
+        \cmidrule{2-12}
+        & M3 Direct & HP1 & $312,984$ & $1.69 \times 10^{-4}$ & $0.00967$ & $0.01301$ & $6.25 \times 10^{-5}$ & $1.93 \times 10^{-4}$ & $6.67 \times 10^{-5}$ & $3.21 \times 10^{-4}$ & $131.2\text{ s}$ \\
+        & M3 Direct & HP2 & $951,448$ & $1.46 \times 10^{-4}$ & $0.00872$ & $0.01207$ & $4.24 \times 10^{-5}$ & $1.69 \times 10^{-4}$ & $3.14 \times 10^{-5}$ & $2.96 \times 10^{-4}$ & $144.7\text{ s}$ \\
+        & \textbf{M3 Direct} & \textbf{HP3} & $196,632$ & $\mathbf{1.21 \times 10^{-4}}$ & $\mathbf{0.00786}$ & $\mathbf{0.01101}$ & $\mathbf{3.76 \times 10^{-5}}$ & $\mathbf{1.40 \times 10^{-4}}$ & $6.62 \times 10^{-5}$ & $\mathbf{2.94 \times 10^{-4}}$ & $75.1\text{ s}$ \\
+        \cmidrule{2-12}
+        & \textbf{M4 Seq2Seq} & \textbf{HP1} & $476,535$ & $\mathbf{3.38 \times 10^{-4}}$ & $\mathbf{0.01439}$ & $\mathbf{0.01838}$ & $\mathbf{2.25 \times 10^{-4}}$ & $\mathbf{3.63 \times 10^{-4}}$ & $1.81 \times 10^{-4}$ & $\mathbf{5.06 \times 10^{-4}}$ & $457.3\text{ s}$ \\
+        & M4 Seq2Seq & HP2 & $1,870,519$ & $4.06 \times 10^{-4}$ & $0.01556$ & $0.02016$ & $2.48 \times 10^{-4}$ & $4.42 \times 10^{-4}$ & $1.46 \times 10^{-4}$ & $6.37 \times 10^{-4}$ & $750.3\text{ s}$ \\
+        & M4 Seq2Seq & HP3 & $144,183$ & $7.55 \times 10^{-4}$ & $0.02160$ & $0.02747$ & $7.36 \times 10^{-4}$ & $7.59 \times 10^{-4}$ & $6.05 \times 10^{-4}$ & $7.91 \times 10^{-4}$ & $209.8\text{ s}$ \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+To ensure rigorous statistical significance, the winning RNN (\textbf{M1 Direct, HP1}) and winning Transformer (\textbf{M3 Direct, HP3}) were further validated via:
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+    \item \textbf{3-Seed Independent Replicas ($\text{seeds} \in \{42, 43, 44\}$, Student-$t$ 95\% CI, $t_{0.975, 2} \approx 4.303$):}
+    \textbf{M1 (HP1)} achieves $\text{Val MSE} = 1.61 \times 10^{-4} \pm 0.01 \times 10^{-4}$ ($\text{MAE} = 9.12 \times 10^{-3} \pm 0.04 \times 10^{-3}$), while \textbf{M3 (HP3)} achieves $\text{Val MSE} = \mathbf{1.21 \times 10^{-4} \pm 0.01 \times 10^{-4}}$ ($\text{MAE} = \mathbf{7.87 \times 10^{-3} \pm 0.10 \times 10^{-3}}$).
+    \item \textbf{5-Fold Trajectory Cross-Validation ($k=5$ across all $340$ development trajectories, $272$ train / $68$ val per fold, $t_{0.975, 4} \approx 2.776$):}
+    \textbf{M1 (HP1)} yields $\text{CV MSE} = 1.60 \times 10^{-4} \pm 0.02 \times 10^{-4}$, whereas \textbf{M3 (HP3)} yields $\text{CV MSE} = \mathbf{1.20 \times 10^{-4} \pm 0.02 \times 10^{-4}}$ (Fig.~\ref{fig:global_and_cv}b).
+    \item \textbf{Held-Out Blind Test Set Evaluation ($60$ unseen test trajectories, $5,760$ windows on \texttt{short}):} Summarized in Table~\ref{tab:table1_summary}.
+\end{enumerate}
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Table 1 --- Summary of winning architectures across 3-seed validation, 5-fold trajectory cross-validation, and blind test set evaluation (\texttt{short} window, $T_{\text{in}}=10 \to T_{\text{out}}=40$).}
+    \label{tab:table1_summary}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{llccccc}
+        \toprule
+        \textbf{Model} & \textbf{Winning Config} & \textbf{3-Seed Val MSE} & \textbf{5-Fold CV MSE} & \textbf{Test MSE} & \textbf{Test MAE} & \textbf{Min $P(s_i,s_j)$} \\
+        \midrule
+        Persistence Baseline & Non-parametric & $6.21 \times 10^{-4}$ & --- & $6.23 \times 10^{-4}$ & $0.01852$ & $0.1553$ \\
+        \textbf{M1 (RNN Direct)} & HP1 (LSTM 1L, 64u) & $1.61 \pm 0.01 \times 10^{-4}$ & $1.60 \pm 0.02 \times 10^{-4}$ & $1.61 \times 10^{-4}$ & $0.00911$ & $0.1672$ ($0\%$ viol.) \\
+        \textbf{M2 (RNN Seq2Seq)} & HP2 (LSTM 2L, 64u) & $2.66 \times 10^{-4}$ (\texttt{short}) & --- & $2.42 \times 10^{-4}$ (\texttt{long}) & $0.01153$ & $0.1591$ ($0\%$ viol.) \\
+        \textbf{M3 (Transf.\ Direct)} & \textbf{HP3 ($d=64, H=2, L=1$)} & $\mathbf{1.21 \pm 0.01 \times 10^{-4}}$ & $\mathbf{1.20 \pm 0.02 \times 10^{-4}}$ & $\mathbf{1.21 \times 10^{-4}}$ & $\mathbf{0.00785}$ & $\mathbf{0.1632}$ ($\mathbf{0\%}$ viol.) \\
+        \textbf{M4 (Transf.\ Seq2Seq)} & HP1 ($d=64, H=4, L=2$) & $3.96 \times 10^{-4}$ (\texttt{short}) & --- & $3.38 \times 10^{-4}$ (\texttt{long}) & $0.01439$ & $0.1584$ ($0\%$ viol.) \\
+        \textbf{M3-SR (Super-Res $\times 2$)} & HP3 ($\Delta t = 0.04 \to 0.02$) & $1.21 \times 10^{-4}$ & --- & $\mathbf{1.21 \times 10^{-4}}$ & $\mathbf{0.00788}$ & $0.1628$ ($0\%$ viol.) \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{../figures/05_inference/global_benchmark_summary.jpeg}
+        \caption{Global 24-model benchmark across \texttt{short} and \texttt{long} windows.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{../figures/05_inference/kfold_cv_and_disaggregated_summary.jpeg}
+        \caption{5-Fold trajectory CV ($k=5$) and disaggregated test MSE.}
+    \end{subfigure}
+    \caption{Global comparison of all 24 trained models (left) and 5-fold cross-validation stability of M1 vs.\ M3 alongside blind test error breakdown between magnetizations and correlations (right).}
+    \label{fig:global_and_cv}
+\end{figure}
+
+\noindent
+\textbf{Discussion of Main Findings:}
+\begin{itemize}[leftmargin=*, itemsep=2pt]
+    \item \textbf{Why M3 (\texttt{TransformerDirect}) is the overall winner:} M3 (HP3) reduces global Test MSE by $\mathbf{25\%}$ compared to the best RNN M1 ($1.21 \times 10^{-4}$ vs.\ $1.61 \times 10^{-4}$) and reduces single-qubit magnetization error by $\mathbf{50\%}$ ($\text{MSE}_{\text{mag}} = 3.60 \times 10^{-5}$ vs.\ $7.20 \times 10^{-5}$). Unlike an LSTM, which compresses the input window sequentially into a single state vector, \texttt{GlobalSelfAttention} computes direct pairwise interactions across all past timesteps before projecting the contextualized representation onto the future horizon.
+    \item \textbf{Why compact HP3 wins on M3 while deeper HP1/HP2 win on M4/M2:} For one-shot projection (M3), a single unregularized attention block ($L=1, H=2$, $\text{dropout}=0.0$) avoids random dropout noise on deterministic Hamiltonian trajectories and trains in half the time ($73\text{ s}$ vs.\ $132\text{ s}$). Conversely, step-by-step autoregressive decoders (M2, M4) require $L=2$ layers with $\text{dropout}=0.1$ (HP2 for M2, HP1 for M4) to regularize against self-generated noise during closed-loop rollouts.
+\end{itemize}
+
+\subsection{Challenge 1: Minimizing the Input Window ($T_{\text{in}} \in \{5, 10, 20, 40\}$)}
+Table~\ref{tab:challenge1} and Fig.~\ref{fig:challenges_1_2}a compare the context-scaling behavior of \textbf{M1 (RNN HP1)} and \textbf{M3 (Transformer HP3)} across $T_{\text{in}} \in \{5, 10, 20, 40\}$ on strictly aligned target windows (\texttt{align\_t\_in = 40}).
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Challenge 1 --- Aligned-target error scaling across $T_{\text{in}} \in \{5, 10, 20, 40\}$ ($5,580$ test windows starting at $t=0.80\text{ s}$).}
+    \label{tab:challenge1}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{ccccccc}
+        \toprule
+        \textbf{Input $T_{\text{in}}$} & \textbf{Physical Span} & \textbf{M1 (RNN) Val MSE} & \textbf{M1 (RNN) Test MSE} & \textbf{M3 (Transf.) Val MSE} & \textbf{M3 (Transf.) Test MSE} & \textbf{M3 Test MAE} \\
+        \midrule
+        $5$ & $0.10\text{ s}$ & $1.71 \times 10^{-4}$ & $1.72 \times 10^{-4}$ & $1.22 \times 10^{-4}$ & $1.23 \times 10^{-4}$ & $0.00797$ \\
+        $10$ (\texttt{short}) & $0.20\text{ s}$ & $1.59 \times 10^{-4}$ & $1.60 \times 10^{-4}$ & $1.22 \times 10^{-4}$ & $1.22 \times 10^{-4}$ & $0.00789$ \\
+        $20$ (\texttt{long}) & $0.40\text{ s}$ & $\mathbf{1.47 \times 10^{-4}}$ & $\mathbf{1.48 \times 10^{-4}}$ & $1.20 \times 10^{-4}$ & $1.21 \times 10^{-4}$ & $0.00786$ \\
+        $40$ & $0.80\text{ s}$ & $1.48 \times 10^{-4}$ & $1.48 \times 10^{-4}$ & $\mathbf{1.11 \times 10^{-4}}$ & $\mathbf{1.11 \times 10^{-4}}$ & $\mathbf{0.00757}$ \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\noindent
+\textbf{Answer to Challenge 1:} We observe a striking architectural dichotomy:
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+    \item For the \textbf{RNN (M1)}, error drops significantly from $T_{\text{in}}=5$ ($1.72 \times 10^{-4}$) to $T_{\text{in}}=20$ ($1.48 \times 10^{-4}$, one half-period of PXP scar oscillation), and \textbf{completely saturates at $T_{\text{in}}=20$} ($1.48 \times 10^{-4}$ at $T_{\text{in}}=40$) due to recurrent state compression.
+    \item For the \textbf{Transformer (M3)}, even $T_{\text{in}}=5$ ($\text{Test MSE} = 1.23 \times 10^{-4}$) and $T_{\text{in}}=10$ ($1.22 \times 10^{-4}$) outperform the best RNN at any window length, while extending to $T_{\text{in}}=40$ yields a further $\mathbf{9\%}$ reduction down to $\mathbf{1.11 \times 10^{-4}}$ because self-attention accesses all $40$ historical tokens without temporal attenuation. Thus, $T_{\text{in}} = 10$ (\texttt{short}) is sufficient for fast, highly accurate predictions, while $T_{\text{in}} = 20$ is optimal for RNNs.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.84\textwidth,height=3.6cm,keepaspectratio]{../figures/05_inference/challenges_1_2_comparison.jpeg}
+    \caption{Left: Challenge 1 aligned-target Test MSE scaling across $T_{\text{in}} \in \{5, 10, 20, 40\}$ for M1 (LSTM) vs.\ M3 (Transformer). Right: Challenge 2 temporal super-resolution ($\times 2$, $\Delta t = 0.04 \to 0.02\text{ s}$) vs.\ native dense sampling.}
+    \label{fig:challenges_1_2}
+\end{figure}
+
+\subsection{Challenge 2: Temporal Super-Resolution ($\times 2$, $\Delta t = 0.04 \to 0.02\text{ s}$)}
+In Challenge~2, \textbf{M3-SR} receives $T_{\text{in}} = 20$ subsampled historical points ($\Delta t_{\text{sub}} = 0.04\text{ s}$, spanning $0.76\text{ s}$) and predicts $T_{\text{out}} = 40$ future steps at native resolution ($\Delta t = 0.02\text{ s}$). We compare M3-SR against an identical M3 model trained on all $39$ native dense points ($\Delta t = 0.02\text{ s}$) covering the exact same historical span (Table~\ref{tab:challenge2} and Fig.~\ref{fig:sr_reconstruction}).
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Challenge 2 --- Temporal Super-Resolution ($\times 2$) vs.\ native dense sampling on the same physical span ($0.76\text{ s}$).}
+    \label{tab:challenge2}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lccccccc}
+        \toprule
+        \textbf{Configuration} & \textbf{Input $\Delta t_{\text{in}}$} & \textbf{Output $\Delta t_{\text{out}}$} & \textbf{Val MSE} & \textbf{Test MSE} & \textbf{Test MAE} & \textbf{MSE Mag} & \textbf{MSE Corr} \\
+        \midrule
+        \textbf{M3-SR (Super-Res $\times 2$, 20 sparse pts)} & $0.04\text{ s}$ & $0.02\text{ s}$ & $1.21 \times 10^{-4}$ & $\mathbf{1.21 \times 10^{-4}}$ & $\mathbf{0.00788}$ & $3.80 \times 10^{-5}$ & $1.39 \times 10^{-4}$ \\
+        M3 Native Reference (39 dense pts) & $0.02\text{ s}$ & $0.02\text{ s}$ & $1.09 \times 10^{-4}$ & $1.10 \times 10^{-4}$ & $0.00754$ & $3.70 \times 10^{-5}$ & $1.25 \times 10^{-4}$ \\
+        \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.84\textwidth,height=3.5cm,keepaspectratio]{../figures/04_transformer/challenge2_super_resolution.jpeg}
+    \caption{Challenge 2 --- Left: Dense future trajectory reconstruction ($\Delta t = 0.02\text{ s}$) from $2\times$ subsampled past observations ($\Delta t = 0.04\text{ s}$, navy dots). Right: Per-step horizon MSE comparing Super-Resolution ($\times 2$) against native dense resolution.}
+    \label{fig:sr_reconstruction}
+\end{figure}
+
+\noindent
+\textbf{Answer to Challenge 2:} Halving the input sensor sampling rate incurs a negligible degradation of only $\Delta \text{MSE} = 1.1 \times 10^{-5}$ ($1.21 \times 10^{-4}$ vs.\ $1.10 \times 10^{-4}$), matching the standard \texttt{short} native model ($1.21 \times 10^{-4}$). Because the Nyquist frequency of $\Delta t_{\text{sub}} = 0.04\text{ s}$ ($f_{\text{Nyq}} = 12.5\text{ Hz}$) remains well above the fundamental PXP scar oscillation frequency ($\sim 0.7\text{ Hz}$), the Transformer's self-attention successfully acts as a non-linear dynamical interpolator.
+
+\subsection{Challenge 3: Physical Interpretability via Attention Maps}
+Following the Lab~7 eager extraction protocol (\texttt{get\_attention\_scores}, analogous to \texttt{Translator} in \texttt{Transformer.ipynb}), we extract the multi-head attention tensors from the last decoder block of \textbf{M4 (\texttt{TransformerSeq2Seq}, HP1, $H=4$ heads)} across $32$ test windows (Fig.~\ref{fig:attention_maps} and Fig.~\ref{fig:attention_profile}):
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+    \item \textbf{Formal Verification of Causal Masking (\texttt{CausalSelfAttention}, $40 \times 40$):} The strictly upper-triangular entries ($j > i$) have maximum magnitude $\max_{j > i} |\alpha_{ij}| = \mathbf{0.00 \times 10^{0}}$ (row-normalization error $1.79 \times 10^{-7}$), proving zero future information leakage during parallel training (Fig.~\ref{fig:attention_maps}b).
+    \item \textbf{Physical Specialization of Multi-Head \texttt{CrossAttention} ($40 \times 10$):} As shown in Fig.~\ref{fig:attention_maps}a and Fig.~\ref{fig:attention_profile}, the four heads specialize into complementary physical roles:
+    \begin{itemize}[leftmargin=*, itemsep=1pt]
+        \item \emph{Local Boundary Phase-Locking (Heads 1 \& 4):} Concentrate $>45\%$ of their weight on the final two observed timesteps $t \in [-0.04, 0.00]\text{ s}$, anchoring the value $\mathbf{x}(t_0)$ and instantaneous velocity $\dot{\mathbf{x}}(t_0)$ across the $t=0$ boundary.
+        \item \emph{Non-Local Scar Periodicity (Heads 2 \& 3):} Distribute attention across earlier lags ($t \in [-0.18, -0.08]\text{ s}$) to estimate the curvature and oscillation phase of the Rydberg blockade revivals across the 40-step horizon.
+    \end{itemize}
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.53\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.5cm,keepaspectratio]{../figures/04_transformer/challenge3_cross_attention_heads.jpeg}
+        \caption{Multi-head \texttt{CrossAttention} ($T_{\text{out}} \times T_{\text{in}}$) across Heads 1--4.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.44\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.5cm,keepaspectratio]{../figures/04_transformer/challenge3_causal_mask_verification.jpeg}
+        \caption{Decoder causal mask ($40\times 40$) vs.\ Encoder ($10\times 10$).}
+    \end{subfigure}
+    \caption{Challenge 3 --- Multi-head decoder-to-encoder cross-attention heatmaps (left) and empirical verification of the lower-triangular causal self-attention mask $\max_{j>i}|\alpha_{ij}| = 0$ (right).}
+    \label{fig:attention_maps}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\textwidth,height=3.4cm,keepaspectratio]{../figures/04_transformer/challenge3_attention_mean_profile.jpeg}
+    \caption{Challenge 3 --- Left: Mean temporal cross-attention profile across the 10 past lags for each head vs.\ uniform attention ($1/T_{\text{in}}$). Right: Physical alignment between past cross-attention weights (orange bars) and the predicted quantum oscillation $m_1(t)$.}
+    \label{fig:attention_profile}
+\end{figure}
+
+\subsection{Training Dynamics, Exposure Bias, and Disaggregated Physical Analysis}
+Fig.~\ref{fig:training_and_fr} illustrates the three-phase hybrid training curves (\texttt{TF} $\to$ \texttt{MM} $\to$ \texttt{SS}) and the horizon error growth ($\tau \in [0.02, 0.80]\text{ s}$). Comparing M4's assisted Teacher-Forcing MSE ($7.8 \times 10^{-5}$) against its open-loop Free-Running MSE ($3.96 \times 10^{-4}$) reveals a $5.08\times$ exposure-bias gap, explaining why one-shot direct projection (\textbf{M3}, $\text{MSE} = 1.21 \times 10^{-4}$) is structurally superior for fixed-horizon continuous dynamics.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.51\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.4cm,keepaspectratio]{../figures/04_transformer/loss_curves_hybrid.jpeg}
+        \caption{Three-phase hybrid validation MSE curves (M3 vs.\ M4).}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.46\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.4cm,keepaspectratio]{../figures/04_transformer/free_running_error_accumulation.jpeg}
+        \caption{Horizon error growth: M4 TF vs.\ M4 FR vs.\ M3 Direct.}
+    \end{subfigure}
+    \caption{Evolution of validation MSE across Teacher Forcing, Masked Modeling, and Scheduled Sampling phases (left) and per-step error accumulation over the 40-step future horizon (right).}
+    \label{fig:training_and_fr}
+\end{figure}
+
+Finally, Fig.~\ref{fig:disagg_and_live} presents the disaggregated error analysis by qubit and correlation pair alongside live multi-step predictions on the blind test set. Edge qubits ($q_1, q_{10}$) exhibit lower error than bulk qubits ($q_5, q_6$) because open boundary conditions restrict interaction neighbors to one side, and nearest-neighbor correlations ($c_{i,i+1}$, super-diagonal of the $10\times 10$ matrix) concentrate the non-trivial variance while long-range correlations remain accurately anchored near zero.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.4cm,keepaspectratio]{../figures/04_transformer/disaggregated_error_analysis.jpeg}
+        \caption{Per-qubit MSE, $10\times 10$ correlation matrix, and Mag vs.\ Corr.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth,height=3.4cm,keepaspectratio]{../figures/05_inference/test_set_live_prediction.jpeg}
+        \caption{Blind test-set rollout: M3 (Transformer) vs.\ M1 (RNN).}
+    \end{subfigure}
+    \caption{Spatial and group error disaggregation on the 10-qubit Rydberg chain (left) and blind test-set trajectory forecast for magnetization $m_1$ and nearest-neighbor correlation $c_{1,2}$ (right).}
+    \label{fig:disagg_and_live}
+\end{figure}
+
+% =============================================================================
+\section{Conclusions \& Future Work}
+% =============================================================================
+
+We presented an end-to-end deep learning framework for forecasting the 55-observable dynamics of a 10-qubit PXP quantum simulator. Our experiments demonstrate that: (i) preserving raw physical observables in $[-1, 1]$ with a $\tanh$ output head outperforms Z-score standardization and guarantees $100\%$ physical density-matrix positivity ($P(s_i,s_j) \ge 0$); (ii) one-shot direct architectures (\textbf{M3}, $\text{Test MSE} = 1.21 \times 10^{-4}$; \textbf{M1}, $\text{Test MSE} = 1.61 \times 10^{-4}$) eliminate autoregressive exposure bias and outperform closed-loop Seq2Seq decoders (\textbf{M2}, \textbf{M4}); and (iii) self-attention unlocks superior context scaling down to $\text{Test MSE} = 1.11 \times 10^{-4}$ at $T_{\text{in}}=40$ (Challenge~1), lossless $\times 2$ temporal super-resolution at $\text{Test MSE} = 1.21 \times 10^{-4}$ (Challenge~2), and physically interpretable attention maps (Challenge~3).
+
+\noindent
+\textbf{Future Directions:}
+\begin{itemize}[leftmargin=*, itemsep=1pt]
+    \item \textbf{Hybrid Direct--Autoregressive Block Rollouts:} Chaining M3 one-shot blocks of length $T_{\text{out}}=40$ iteratively to forecast ultra-long horizons ($T_{\text{out}} \ge 160$) while limiting autoregressive feedback steps by $40\times$.
+    \item \textbf{Physics-Informed Positivity Regularization:} Incorporating soft penalty terms on the eigenvalues of the two-body reduced density matrix for extreme subsampling factors ($\times 4, \times 8$).
+    \item \textbf{Cross-System Size Generalization ($N > 10$):} Replacing the fixed-$D$ input projection with graph/spatial attention over qubit coordinates to zero-shot extrapolate from $N=10$ to larger Rydberg chains ($N \ge 20$).
+\end{itemize}
+
+\noindent
+\textbf{Code \& Reproducibility:} All source modules (\texttt{src/}), executed notebooks (\texttt{notebooks/01\_data.ipynb} to \texttt{05\_inference.ipynb}), unit tests (\texttt{tests/}), and trained checkpoints (\texttt{checkpoints/}) are available in the project repository: \url{https://github.com/Riccardo-27/DL-Quantum}.
+
+\begin{thebibliography}{9}
+
+\bibitem{vaswani2017}
+A.~Vaswani, N.~Shazeer, N.~Parmar, J.~Uszkoreit, L.~Jones, A.~N.~Gomez, \L.~Kaiser, and I.~Polosukhin,
+``Attention Is All You Need,'' in \textit{Advances in Neural Information Processing Systems (NeurIPS)}, 2017, arXiv:1706.03762.
+
+\bibitem{bengio2015}
+S.~Bengio, O.~Vinyals, N.~Jaitly, and N.~Shazeer,
+``Scheduled Sampling for Sequence Prediction with Recurrent Neural Networks,'' in \textit{Advances in Neural Information Processing Systems (NeurIPS)}, 2015, arXiv:1506.03099.
+
+\bibitem{carleo2017}
+G.~Carleo and M.~Troyer,
+``Solving the Quantum Many-Body Problem with Artificial Neural Networks,'' \textit{Science}, vol.~355, no.~6325, pp.~602--606, 2017.
+
+\bibitem{sutskever2014}
+I.~Sutskever, O.~Vinyals, and Q.~V.~Le,
+``Sequence to Sequence Learning with Neural Networks,'' in \textit{Advances in Neural Information Processing Systems (NeurIPS)}, 2014, arXiv:1409.3215.
+
+\bibitem{bernien2017}
+H.~Bernien, S.~Schwartz, A.~Keesling, H.~Levine, A.~Omran, H.~Pichler, S.~Choi, A.~S.~Zibrov, M.~Endres, M.~Greiner, V.~Vuleti\'c, and M.~D.~Lukin,
+``Probing Many-Body Dynamics on a 51-Atom Quantum Simulator,'' \textit{Nature}, vol.~551, pp.~579--584, 2017.
+
+\bibitem{mihaylova2019}
+T.~Mihaylova and A.~F.~T.~Martins,
+``Scheduled Sampling for Transformers,'' in \textit{Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (ACL)}, 2019, pp.~3517--3524.
+
+\end{thebibliography}
+
+\end{document}

@@ -28,7 +28,6 @@ checkpoints/*
 Thumbs.db
 
 # Materiali Esterni e Documenti di Riferimento
-*.pdf
 scratch/
 GUIDA_*.md
 MaterialeSofia/
