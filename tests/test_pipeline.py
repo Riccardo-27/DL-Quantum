@@ -483,7 +483,7 @@ def test_transformer_models_and_attention():
     # Le righe delle matrici di attenzione normalizzate con softmax sommano a 1
     np.testing.assert_allclose(cross.sum(axis=-1), 1.0, atol=1e-5)
     np.testing.assert_allclose(causal.sum(axis=-1), 1.0, atol=1e-5)
-    # Verifica anti-leakage (Guida S11): la parte strettamente triangolare superiore (j > i) deve essere zero
+    # Verifica causalita' temporale anti-leakage: la parte strettamente triangolare superiore (j > i) deve essere zero
     upper_tri = np.triu(causal, k=1)
     np.testing.assert_allclose(upper_tri, 0.0, atol=1e-6)
 

@@ -11,6 +11,7 @@
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{graphicx}
+\graphicspath{{figures/}{figures/}{./}}
 \usepackage{xcolor}
 \usepackage{tikz}
 \usepackage{hyperref}
@@ -152,8 +153,8 @@
         \end{column}
         \begin{column}{0.53\textwidth}
             \centering
-            \figcardh{0.96\linewidth}{2.2cm}{../figures/02_windowing/tin_grid_comparison.jpeg}{Sliding-window extraction with strictly aligned future targets ($t_0 = 0.80\text{ s}$)}\\[0.1cm]
-            \figcardh{0.96\linewidth}{2.05cm}{../figures/01_data/normalization_loss_curves.jpeg}{Normalization ablation: raw physical scale (\texttt{none} + $\tanh$) vs.\ Z-score}
+            \figcardh{0.96\linewidth}{2.2cm}{figures/02_windowing/tin_grid_comparison.jpeg}{Sliding-window extraction with strictly aligned future targets ($t_0 = 0.80\text{ s}$)}\\[0.1cm]
+            \figcardh{0.96\linewidth}{2.05cm}{figures/01_data/normalization_loss_curves.jpeg}{Normalization ablation: raw physical scale (\texttt{none} + $\tanh$) vs.\ Z-score}
         \end{column}
     \end{columns}
 \end{frame}
@@ -237,8 +238,8 @@
         \end{column}
         \begin{column}{0.52\textwidth}
             \centering
-            \figcardh{0.96\linewidth}{2.2cm}{../figures/04_transformer/loss_curves_hybrid.jpeg}{Validation MSE across the 3-phase curriculum (M3 Direct vs.\ M4 Seq2Seq)}\\[0.12cm]
-            \figcardh{0.96\linewidth}{2.2cm}{../figures/04_transformer/free_running_error_accumulation.jpeg}{Step-by-step error propagation: Teacher Forcing vs.\ Free-Running vs.\ One-Shot M3}
+            \figcardh{0.96\linewidth}{2.2cm}{figures/04_transformer/loss_curves_hybrid.jpeg}{Validation MSE across the 3-phase curriculum (M3 Direct vs.\ M4 Seq2Seq)}\\[0.12cm]
+            \figcardh{0.96\linewidth}{2.2cm}{figures/04_transformer/free_running_error_accumulation.jpeg}{Step-by-step error propagation: Teacher Forcing vs.\ Free-Running vs.\ One-Shot M3}
         \end{column}
     \end{columns}
 \end{frame}
@@ -346,11 +347,11 @@
     \begin{columns}[T]
         \begin{column}{0.48\textwidth}
             \centering
-            \figcardh{0.98\linewidth}{2.75cm}{../figures/04_transformer/challenge1_tin_scaling.jpeg}{Aligned-target MSE scaling across $T_{\text{in}} \in \{5, 10, 20, 40\}$ for M3 Transformer}
+            \figcardh{0.98\linewidth}{2.75cm}{figures/04_transformer/challenge1_tin_scaling.jpeg}{Aligned-target MSE scaling across $T_{\text{in}} \in \{5, 10, 20, 40\}$ for M3 Transformer}
         \end{column}
         \begin{column}{0.48\textwidth}
             \centering
-            \figcardh{0.98\linewidth}{2.75cm}{../figures/05_inference/global_benchmark_summary.jpeg}{Validation MSE comparison across all four model families (short vs.\ long window)}
+            \figcardh{0.98\linewidth}{2.75cm}{figures/05_inference/global_benchmark_summary.jpeg}{Validation MSE comparison across all four model families (short vs.\ long window)}
         \end{column}
     \end{columns}
 \end{frame}
@@ -370,7 +371,7 @@
         \end{column}
         \begin{column}{0.55\textwidth}
             \centering
-            \figcardh{0.98\linewidth}{2.75cm}{../figures/04_transformer/challenge2_super_resolution.jpeg}{M3-SR reconstruction of a $2\times$ subsampled test trajectory and horizon error profile}\\[0.22cm]
+            \figcardh{0.98\linewidth}{2.75cm}{figures/04_transformer/challenge2_super_resolution.jpeg}{M3-SR reconstruction of a $2\times$ subsampled test trajectory and horizon error profile}\\[0.22cm]
             \setlength{\fboxsep}{7pt}%
             \setlength{\fboxrule}{0.5pt}%
             \fcolorbox{rulegray}{cardbg}{%
@@ -405,8 +406,8 @@
         \end{column}
         \begin{column}{0.55\textwidth}
             \centering
-            \figcardh{0.98\linewidth}{2.15cm}{../figures/04_transformer/challenge3_cross_attention_heads.jpeg}{M4 decoder cross-attention across all 4 heads ($40$ future queries $\times 10$ past keys)}\\[0.12cm]
-            \figcardh{0.98\linewidth}{2.25cm}{../figures/04_transformer/challenge3_causal_mask_verification.jpeg}{Decoder lower-triangular causal mask ($40\times 40$) and encoder bidirectional self-attention}
+            \figcardh{0.98\linewidth}{2.15cm}{figures/04_transformer/challenge3_cross_attention_heads.jpeg}{M4 decoder cross-attention across all 4 heads ($40$ future queries $\times 10$ past keys)}\\[0.12cm]
+            \figcardh{0.98\linewidth}{2.25cm}{figures/04_transformer/challenge3_causal_mask_verification.jpeg}{Decoder lower-triangular causal mask ($40\times 40$) and encoder bidirectional self-attention}
         \end{column}
     \end{columns}
 \end{frame}
@@ -418,11 +419,11 @@
     \begin{columns}[T]
         \begin{column}{0.48\textwidth}
             \centering
-            \figcardh{0.98\linewidth}{2.95cm}{../figures/05_inference/test_set_live_prediction.jpeg}{Forecast comparison on blind test Trajectory \#6 ($m_1$ and $c_{1,2}$), M1 RNN vs.\ M3 Transformer}
+            \figcardh{0.98\linewidth}{2.95cm}{figures/05_inference/test_set_live_prediction.jpeg}{Forecast comparison on blind test Trajectory \#6 ($m_1$ and $c_{1,2}$), M1 RNN vs.\ M3 Transformer}
         \end{column}
         \begin{column}{0.48\textwidth}
             \centering
-            \figcardh{0.98\linewidth}{2.95cm}{../figures/04_transformer/disaggregated_error_analysis.jpeg}{Disaggregated physical error: per-qubit magnetization MSE, $c_{ij}$ matrix, and horizon drift}
+            \figcardh{0.98\linewidth}{2.95cm}{figures/04_transformer/disaggregated_error_analysis.jpeg}{Disaggregated physical error: per-qubit magnetization MSE, $c_{ij}$ matrix, and horizon drift}
         \end{column}
     \end{columns}
 

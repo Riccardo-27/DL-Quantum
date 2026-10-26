@@ -2,7 +2,7 @@
 
 Gestisce il salvataggio uniforme e la visualizzazione delle traiettorie simulate
 e delle finestre temporali, garantendo gli standard qualitativi per la relazione
-tecnica e le slide dell'esposizione orale.
+tecnica e le presentazioni del progetto.
 """
 
 from __future__ import annotations

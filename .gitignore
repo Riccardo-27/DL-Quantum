@@ -1,36 +1,78 @@
-# Python & Ambiente Virtuale
+# =============================================================================
+# Python, Virtual Environments & Packaging
+# =============================================================================
 .venv/
+venv/
+env/
 __pycache__/
 *.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
 
-# Jupyter Notebook
+# =============================================================================
+# Jupyter Notebooks
+# =============================================================================
 .ipynb_checkpoints/
 
-# Dati Pesanti e Cache (risiedono su Google Drive)
+# =============================================================================
+# Heavy Data & Binary Caches (Hosted on Google Drive)
+# =============================================================================
 data/
 trajectories.csv
 *.npy
 
-# Modelli e Checkpoint Addestrati
+# =============================================================================
+# Model Weights & Trained Checkpoints
+# =============================================================================
 checkpoints/*
 !checkpoints/.gitkeep
 *.keras
 *.h5
+*.pt
+*.pth
 
-# Test & Log
+# =============================================================================
+# Testing, Coverage & Logs
+# =============================================================================
 .pytest_cache/
 *.log
+.coverage
+htmlcov/
 
-# Editor e Sistema Operativo
+# =============================================================================
+# LaTeX Auxiliary & Compilation Artifacts
+# =============================================================================
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.nav
+*.out
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+
+# =============================================================================
+# IDEs & Operating System Artifacts
+# =============================================================================
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Materiali Esterni e Documenti di Riferimento
+# =============================================================================
+# External Reference Materials & Working Scratches
+# =============================================================================
 scratch/
 GUIDA_*.md
 MaterialeSofia/
 NotebookCollega/
 Labs/
-Labs/
+docs/
