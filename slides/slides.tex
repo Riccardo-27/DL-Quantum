@@ -11,7 +11,7 @@
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{graphicx}
-\graphicspath{{figures/}{figures/}{./}}
+\graphicspath{{../}{./}{../figures/}{figures/}}
 \usepackage{xcolor}
 \usepackage{tikz}
 \usepackage{hyperref}
@@ -265,13 +265,13 @@
                     \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lr@{}}
                         \texttt{cell\_type} & \textbf{LSTM} \\
                         \specialrule{0.4pt}{3.5pt}{3.5pt}
-                        \texttt{rnn\_units} & \textbf{128} \\
+                        \texttt{rnn\_units} & \textbf{64} \\
                         \specialrule{0.4pt}{3.5pt}{3.5pt}
                         \texttt{num\_layers} & \textbf{1 (M1) / 2 (M2)} \\
                         \specialrule{0.4pt}{3.5pt}{3.5pt}
-                        \texttt{dropout} & \textbf{0.10} \\
+                        \texttt{dropout} & \textbf{0.0 (M1) / 0.10 (M2)} \\
                         \specialrule{0.4pt}{3.5pt}{3.5pt}
-                        \texttt{lr (AdamW + Cosine)} & \textbf{0.001} \\
+                        \texttt{lr (Adam)} & \textbf{0.001} \\
                     \end{tabular*}
                 \end{minipage}%
             }
@@ -292,7 +292,7 @@
                         \specialrule{0.4pt}{3.5pt}{3.5pt}
                         \texttt{ff\_dim} & $\mathbf{2 \cdot d_{\text{model}} = 128}$ \\
                         \specialrule{0.4pt}{3.5pt}{3.5pt}
-                        \texttt{lr (AdamW + Cosine)} & \textbf{0.001} \\
+                        \texttt{lr (Adam)} & \textbf{0.001} \\
                     \end{tabular*}
                 \end{minipage}%
             }
