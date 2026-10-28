@@ -68,7 +68,7 @@ def plot_trajectory(
     t = np.arange(traj.shape[0]) * dt
     for f in features:
         ax.plot(t, traj[:, f], label=names[f], lw=1)
-    ax.set_xlabel("Tempo (t)")
+    ax.set_xlabel("Time (t)")
     ax.legend(ncol=min(len(features), 5), fontsize=8)
     if title:
         ax.set_title(title)
@@ -104,18 +104,18 @@ def plot_window(
     t_y = (t_in + np.arange(t_out)) * dt
 
     # Contesto passato (input noto)
-    ax.plot(t_x, x[:, feature], "o-", ms=3, label="Input (passato)")
+    ax.plot(t_x, x[:, feature], "o-", ms=3, label="Input (past)")
 
     # Valore reale futuro (ground truth)
-    ax.plot(t_y, y[:, feature], "-", label="Target reale")
+    ax.plot(t_y, y[:, feature], "-", label="Ground truth")
 
     # Predizione opzionale della rete neurale
     if y_pred is not None:
-        ax.plot(t_y, y_pred[:, feature], "--", label="Predizione")
+        ax.plot(t_y, y_pred[:, feature], "--", label="Prediction")
 
     # Separatore visivo passato/futuro
     ax.axvline(t_in * dt - dt / 2, color="gray", lw=0.8, ls=":")
-    ax.set_xlabel("Tempo relativo (t)")
+    ax.set_xlabel("Relative time (t)")
     ax.set_ylabel(feature_names()[feature])
     ax.legend(fontsize=8)
     if title:
