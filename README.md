@@ -5,9 +5,17 @@
 [![Keras](https://img.shields.io/badge/Keras-3.0%2B-red.svg?logo=keras&logoColor=white)](https://keras.io/)
 [![Tests](https://img.shields.io/badge/Tests-21%2F21%20passing-brightgreen.svg?logo=pytest&logoColor=white)](tests/test_pipeline.py)
 [![Physics](https://img.shields.io/badge/Physics-1D%20PXP%20Model-purple.svg)](https://en.wikipedia.org/wiki/Rydberg_atom)
-[![Deliverables](https://img.shields.io/badge/Report%20%26%20Slides-Ready-success.svg)](report/Quantum_Dynamics_Report.pdf)
+[![Report PDF](https://img.shields.io/badge/Report-10--Page%20PDF-success.svg)](report/Quantum_Dynamics_Report.pdf)
+[![Slides Deck](https://img.shields.io/badge/Slides-16%3A9%20Deck-informational.svg)](slides/Quantum_Dynamics_Slides.pptx)
 
 Previsione della dinamica quantistica di non-equilibrio nel modello **1D PXP** (catena a 10 atomi di Rydberg) mediante modelli di Deep Learning ricorrenti e basati su attenzione (Transformer), addestrati con protocollo curriculum progressivo ibrido.
+
+> ### 📦 Deliverables Ufficiali e Accesso Rapido
+> | Deliverable | Descrizione | Formato & Collegamento |
+> | :--- | :--- | :--- |
+> | 📄 **Relazione Finale Ufficiale** | Articolo formale di **10 pagine**, layout accademico a due colonne (stile IEEE/NeurIPS), 16 figure, analisi statistica completa e riferimenti | [`report/Quantum_Dynamics_Report.pdf`](report/Quantum_Dynamics_Report.pdf) |
+> | 📊 **Slide di Presentazione** | Presentazione ufficiale in **13 slide widescreen (16:9)**, grafica ad alta definizione, analisi disaggregata dell'errore e risoluzione sfide | [`slides/Quantum_Dynamics_Slides.pptx`](slides/Quantum_Dynamics_Slides.pptx) |
+> | 📓 **Demo Live di Inferenza** | Pipeline completa di inferenza con predizione istantanea su traiettoria cieca del Test Set, 5-Fold Cross Validation e riproduzione Table 1 | [`notebooks/05_inference.ipynb`](notebooks/05_inference.ipynb) |
 
 ---
 
@@ -97,7 +105,7 @@ Lo sviluppo dei modelli adotta una rigorosa roadmap incrementale: ogni architett
 
 * **Obiettivo**: Identificare la minima storia passata necessaria per prevedere con accuratezza l'orizzonte futuro target $T_{\text{out}} = 40$.
 * **Metodologia**: Griglia sistematica $T_{\text{in}} \in \{5, 10, 20, 40\}$ con target futuro rigorosamente allineato (`align_t_in=40`) per evitare bias di fase dinamica tra finestre corte e lunghe.
-* **Risultato**: $T_{\text{in}} = 10$ ($\tau_{\text{in}} = 0.20$) rappresenta il **knee-point** ottimale del trade-off accuratezza/complessità: raggiunge il **91% dell'accuratezza asintotica** di $T_{\text{in}}=40$ impiegando appena il 25% dell'input. A $T_{\text{in}}=5$ ($\tau_{\text{in}}=0.10$), l'osservazione copre meno del 10% del periodo di scar ($\tau_{\text{scar}} \approx 1.33$), rendendo impossibile determinare la fase istantanea della dinamica coerente.
+* **Risultato**: $T_{\text{in}} = 10$ ($\tau_{\text{in}} = 0.20$) rappresenta il **knee-point** ottimale del trade-off accuratezza/complessità: raggiunge il **91% dell'accuratezza asintotica** di $T_{\text{in}}=40$ impiegando appena il 25% dell'input (risparmio del 75% sul tempo di lettura hardware). A $T_{\text{in}}=5$ ($\tau_{\text{in}}=0.10$), l'osservazione copre meno del 10% del periodo di scar ($\tau_{\text{scar}} \approx 1.33$), rendendo impossibile determinare la fase istantanea della dinamica coerente.
 
 ### 2. Sfida 2: Super-Risoluzione Temporale $\times 2$ ed Imputazione
 
@@ -115,6 +123,12 @@ Lo sviluppo dei modelli adotta una rigorosa roadmap incrementale: ogni architett
      * **Teste 2 e 3 (Periodic Scar Tracking)**: Sviluppano pattern periodici modulati alla frequenza fondamentale delle quantum scars ($\omega_{\text{scar}} \approx 4.7$ rad/$\tau$, corrispondente al periodo di reviviscenza $\tau_{\text{scar}} \approx 1.33$), tracciando attivamente il ritorno dello stato quantistico di Néel $|\mathbb{Z}_2\rangle$.
   3. *Blocco di Rydberg*: La connettività delle mappe di correlazione spaziale riflette l'inibizione dell'eccitazione simultanea a primi vicini ($V_{ij} \sim C_6/R^6 \gg \Omega$).
 
+<p align="center">
+  <img src="figures/04_transformer/challenge3_cross_attention_heads.jpeg" alt="M4 Decoder Cross-Attention Maps" width="92%"/>
+  <br/>
+  <em>Figura 1: Mappe di Cross-Attenzione Multi-Testa del modello M4 (Teste 1–4). Le teste 1 e 4 realizzano il boundary phase-locking sui bordi temporali passati, mentre le teste 2 e 3 mantengono attenzione multi-lag per tracciare le oscillazioni periodiche delle quantum scars.</em>
+</p>
+
 ---
 
 ## 🏆 Benchmark Finale (Table 1 Canonica)
@@ -131,6 +145,13 @@ Confronto tra le configurazioni HP dei modelli ricorrenti (M1) e dei Transformer
 | **M3 (HP3)** | **One-Shot Transformer ($d=64, H=2, L=1$) [Vincitore]** | $\mathbf{196{,}632}$ | $\mathbf{1.21 \pm 0.06}$ | $\mathbf{0.78 \pm 0.02}$ | $\mathbf{1.22 \pm 0.06}$ | $\mathbf{0.0\%}$ |
 
 * **5-Fold Cross Validation per traiettoria**: **M3 HP3** raggiunge $\text{MSE}_{\text{CV}} = 1.20 \pm 0.04 \times 10^{-4}$ confermando un'elevatissima stabilità di generalizzazione rispetto a M1 HP1 ($1.60 \pm 0.03 \times 10^{-4}$).
+* **Abbattimento dell'Errore**: M3 ottiene una riduzione del **$-24.9\%$ di errore globale** rispetto a M1 e del **$-52\%$ di errore sulle singole magnetizzazioni** ($\text{MSE} = 0.36 \times 10^{-4}$).
+
+<p align="center">
+  <img src="figures/05_inference/test_set_live_prediction.jpeg" alt="Test Set Live Prediction - M3 vs M1" width="92%"/>
+  <br/>
+  <em>Figura 2: Previsione su finestra cieca del Test Set per la magnetizzazione $m_1$ e la correlazione $c_{1,2}$. Il Transformer Diretto M3 (verde) sovrappone fedelmente il Ground Truth (tratteggio nero) su tutte le 40 oscillazioni future, mentre l'LSTM M1 (blu) manifesta progressive derive di fase sui punti di inversione.</em>
+</p>
 
 ---
 
@@ -159,13 +180,12 @@ dl-quantum/
 │   ├── 04_transformer.ipynb  # Modelli Transformer (Studio Pilota, Autoencoder, M3/M4 e Sfide 1-2-3)
 │   └── 05_inference.ipynb    # Pipeline di inferenza rapida, Table 1, 5-Fold CV e demo live di inferenza
 ├── results/                  # File di log sperimentali, Table 1 CSV, sintesi risultati (.md) e split_indices.npz
-├── figures/                  # Grafici JPEG ad alta risoluzione (>= 300 DPI)
+├── figures/                  # Grafici JPEG ad alta risoluzione (>= 300 DPI) in 5 categorie
 ├── report/                   # Relazione tecnica finale di progetto
 │   ├── Quantum_Dynamics_Report.pdf  # Documento PDF formale (10 pagine, layout rivista a due colonne)
 │   └── Quantum_Dynamics_Report.tex  # Sorgente LaTeX compilabile con \graphicspath portabile
 ├── slides/                   # Presentazione del progetto
-│   ├── slides.pdf            # Presentazione Beamer 16:9 calibrata per 5 minuti
-│   └── slides.tex            # Sorgente LaTeX Beamer
+│   └── Quantum_Dynamics_Slides.pptx # Presentazione ufficiale (13 slide widescreen 16:9 con figure ad alta risoluzione)
 ├── decision_log.md           # Registro formale delle decisioni architetturali e roadmap incrementale
 └── requirements.txt          # Dipendenze complete unificate del progetto
 ```
@@ -202,13 +222,15 @@ dl-quantum/
    ```
 
 5. **Demo Live di Inferenza sul Test Set (Notebook 05)**:
-   * Aprire `notebooks/05_inference.ipynb` ed eseguire la cella finale per caricare il modello vincitore salvato ed eseguire la predizione in tempo reale su una traiettoria cieca del Test Set.
+   * Aprire `notebooks/05_inference.ipynb` ed eseguire le celle di inferenza per caricare il modello vincitore salvato ed eseguire la predizione in tempo reale su una traiettoria cieca del Test Set.
+
+> **Nota sul Dataset (`trajectories.csv`)**: A causa delle dimensioni (~464 MB), il dataset grezzo simulato e le cache binarie pesanti `.npy` sono esclusi dal repository Git (`.gitignore`). La riproduzione dei benchmark, della cross-validation e dell'inferenza in `notebooks/05_inference.ipynb` utilizza le partizioni ufficiali caricate da `results/split_indices.npz` e i log sperimentali tracciati in `results/`.
 
 ---
 
 ## ☁️ Esecuzione su Google Colab e Branching Model
 
-Gli addestramenti pesanti e le sessioni di validazione sono stati eseguiti su Google Colab con acceleratore GPU (Tesla T4).
+Gli addestramenti completi e le sessioni di validazione multi-seed sono stati eseguiti su Google Colab con acceleratore GPU (Tesla T4).
 
 ### 1. Gestione Automatica dei Branch tramite Segreti Colab
 
@@ -230,7 +252,13 @@ Per garantire un versionamento concorrente privo di conflitti e impedire sovrasc
 
 ## 👥 Autori e Riferimenti
 
-* **Ernesto** – Sviluppo modelli, pipeline dati, formalizzazione statistica, benchmarking e test suite.
-* **Riccardo** – Sviluppo modelli, addestramento GPU Colab, validazione sperimentale e analisi delle sfide.
+* **Ernesto Gligora** – Sviluppo modelli, pipeline dati, formalizzazione statistica, benchmarking, architettura Transformer e test suite.
+* **Riccardo Lavorato** – Sviluppo modelli, addestramento GPU Colab, validazione sperimentale, analisi disaggregata e risoluzione delle sfide.
 
-*Corso di Deep Learning – Università della Calabria*
+*Corso di Deep Learning – Corso di Laurea Magistrale in Artificial Intelligence and Computer Science – Università della Calabria (A.A. 2025/2026)*
+
+---
+
+## 📜 Licenza e Note Accademiche
+
+Questo progetto è rilasciato per scopi didattici, accademici e di ricerca. Tutti i diritti sulle simulazioni e sui materiali didattici appartengono ai rispettivi autori e all'Università della Calabria.
