@@ -5,17 +5,10 @@
 [![Keras](https://img.shields.io/badge/Keras-3.0%2B-red.svg?logo=keras&logoColor=white)](https://keras.io/)
 [![Tests](https://img.shields.io/badge/Tests-21%2F21%20passing-brightgreen.svg?logo=pytest&logoColor=white)](tests/test_pipeline.py)
 [![Physics](https://img.shields.io/badge/Physics-1D%20PXP%20Model-purple.svg)](https://en.wikipedia.org/wiki/Rydberg_atom)
-[![Report PDF](https://img.shields.io/badge/Report-10--Page%20PDF-success.svg)](report/Quantum_Dynamics_Report.pdf)
-[![Slides Deck](https://img.shields.io/badge/Slides-16%3A9%20Deck-informational.svg)](slides/Quantum_Dynamics_Slides.pptx)
+[![Report](https://img.shields.io/badge/Report-10--Page%20PDF-success.svg)](report/Quantum_Dynamics_Report.pdf)
+[![Slides](https://img.shields.io/badge/Slides-16%3A9%20Deck-informational.svg)](slides/Quantum_Dynamics_Slides.pptx)
 
 Previsione della dinamica quantistica di non-equilibrio nel modello **1D PXP** (catena a 10 atomi di Rydberg) mediante modelli di Deep Learning ricorrenti e basati su attenzione (Transformer), addestrati con protocollo curriculum progressivo ibrido.
-
-> ### 📦 Deliverables Ufficiali e Accesso Rapido
-> | Deliverable | Descrizione | Formato & Collegamento |
-> | :--- | :--- | :--- |
-> | 📄 **Relazione Finale Ufficiale** | Articolo formale di **10 pagine**, layout accademico a due colonne (stile IEEE/NeurIPS), 16 figure, analisi statistica completa e riferimenti | [`report/Quantum_Dynamics_Report.pdf`](report/Quantum_Dynamics_Report.pdf) |
-> | 📊 **Slide di Presentazione** | Presentazione ufficiale in **13 slide widescreen (16:9)**, grafica ad alta definizione, analisi disaggregata dell'errore e risoluzione sfide | [`slides/Quantum_Dynamics_Slides.pptx`](slides/Quantum_Dynamics_Slides.pptx) |
-> | 📓 **Demo Live di Inferenza** | Pipeline completa di inferenza con predizione istantanea su traiettoria cieca del Test Set, 5-Fold Cross Validation e riproduzione Table 1 | [`notebooks/05_inference.ipynb`](notebooks/05_inference.ipynb) |
 
 ---
 
@@ -28,7 +21,7 @@ Previsione della dinamica quantistica di non-equilibrio nel modello **1D PXP** (
 * [Benchmark Finale (Table 1 Canonica)](#-benchmark-finale-table-1-canonica)
 * [Struttura del Repository e Deliverables](#-struttura-del-repository-e-deliverables)
 * [Setup Locale e Riproducibilità](#-setup-locale-e-riproducibilità)
-* [Esecuzione su Google Colab e Branching Model](#-esecuzione-su-google-colab-e-branching-model)
+* [Workflow di Sviluppo Interno su Google Colab](#-workflow-di-sviluppo-interno-su-google-colab)
 * [Autori e Riferimenti](#-autori-e-riferimenti)
 
 ---
@@ -123,12 +116,6 @@ Lo sviluppo dei modelli adotta una rigorosa roadmap incrementale: ogni architett
      * **Teste 2 e 3 (Periodic Scar Tracking)**: Sviluppano pattern periodici modulati alla frequenza fondamentale delle quantum scars ($\omega_{\text{scar}} \approx 4.7$ rad/$\tau$, corrispondente al periodo di reviviscenza $\tau_{\text{scar}} \approx 1.33$), tracciando attivamente il ritorno dello stato quantistico di Néel $|\mathbb{Z}_2\rangle$.
   3. *Blocco di Rydberg*: La connettività delle mappe di correlazione spaziale riflette l'inibizione dell'eccitazione simultanea a primi vicini ($V_{ij} \sim C_6/R^6 \gg \Omega$).
 
-<p align="center">
-  <img src="figures/04_transformer/challenge3_cross_attention_heads.jpeg" alt="M4 Decoder Cross-Attention Maps" width="92%"/>
-  <br/>
-  <em>Figura 1: Mappe di Cross-Attenzione Multi-Testa del modello M4 (Teste 1–4). Le teste 1 e 4 realizzano il boundary phase-locking sui bordi temporali passati, mentre le teste 2 e 3 mantengono attenzione multi-lag per tracciare le oscillazioni periodiche delle quantum scars.</em>
-</p>
-
 ---
 
 ## 🏆 Benchmark Finale (Table 1 Canonica)
@@ -146,12 +133,6 @@ Confronto tra le configurazioni HP dei modelli ricorrenti (M1) e dei Transformer
 
 * **5-Fold Cross Validation per traiettoria**: **M3 HP3** raggiunge $\text{MSE}_{\text{CV}} = 1.20 \pm 0.04 \times 10^{-4}$ confermando un'elevatissima stabilità di generalizzazione rispetto a M1 HP1 ($1.60 \pm 0.03 \times 10^{-4}$).
 * **Abbattimento dell'Errore**: M3 ottiene una riduzione del **$-24.9\%$ di errore globale** rispetto a M1 e del **$-52\%$ di errore sulle singole magnetizzazioni** ($\text{MSE} = 0.36 \times 10^{-4}$).
-
-<p align="center">
-  <img src="figures/05_inference/test_set_live_prediction.jpeg" alt="Test Set Live Prediction - M3 vs M1" width="92%"/>
-  <br/>
-  <em>Figura 2: Previsione su finestra cieca del Test Set per la magnetizzazione $m_1$ e la correlazione $c_{1,2}$. Il Transformer Diretto M3 (verde) sovrappone fedelmente il Ground Truth (tratteggio nero) su tutte le 40 oscillazioni future, mentre l'LSTM M1 (blu) manifesta progressive derive di fase sui punti di inversione.</em>
-</p>
 
 ---
 
@@ -228,25 +209,19 @@ dl-quantum/
 
 ---
 
-## ☁️ Esecuzione su Google Colab e Branching Model
+## ☁️ Workflow di Sviluppo Interno su Google Colab
 
-Gli addestramenti completi e le sessioni di validazione multi-seed sono stati eseguiti su Google Colab con acceleratore GPU (Tesla T4).
+> *Nota di servizio ad uso esclusivo degli sviluppatori del progetto (Ernesto & Riccardo).*
 
-### 1. Gestione Automatica dei Branch tramite Segreti Colab
+Per eseguire gli addestramenti pesanti e le sessioni sperimentali con accelerazione GPU (Tesla T4) garantendo il versionamento concorrente privo di conflitti:
 
-Per garantire un versionamento concorrente privo di conflitti e impedire sovrascritture su Google Drive:
+1. **Gestione dei Branch tramite Segreti Colab**:
+   * **Ernesto**: impostare il segreto `GIT_E_TOKEN` nel menu **Chiave 🔑 Segreti** di Colab. Il notebook si posiziona automaticamente sul branch `dev-ernesto` e scrive i log su `results/results_log_ernesto.csv`.
+   * **Riccardo**: impostare il segreto `GIT_R_TOKEN`. Il notebook si posiziona automaticamente sul branch `dev-riccardo` e scrive i log su `results/results_log_riccardo.csv`.
 
-* **Ernesto**: imposta nel menu laterale di Colab (icona **Chiave 🔑 Segreti**) il segreto **`GIT_E_TOKEN`** con il proprio Personal Access Token GitHub.
-  * Il notebook allinea automaticamente il workspace sul branch **`dev-ernesto`**.
-  * I log sperimentali vengono scritti su `results/results_log_ernesto.csv`.
-* **Riccardo**: imposta nel menu laterale di Colab il segreto **`GIT_R_TOKEN`**.
-  * Il notebook allinea automaticamente il workspace sul branch **`dev-riccardo`**.
-  * I log sperimentali vengono scritti su `results/results_log_riccardo.csv`.
-
-### 2. Struttura Dati su Google Drive
-
-* Posizionare il dataset grezzo `trajectories.csv` (~464 MB) nel percorso standard: `MyDrive/DL-Quantum/data/trajectories.csv`.
-* La cache binaria `data/cache/trajectories.npy` (88 MB) e le partizioni `results/split_indices.npz` vengono caricate e gestite automaticamente senza copie ridondanti.
+2. **Dati su Google Drive**:
+   * Collocare il file `trajectories.csv` (~464 MB) nel percorso `MyDrive/DL-Quantum/data/trajectories.csv`.
+   * I notebook generano e aggiornano la cache binaria `.npy` e le partizioni `results/split_indices.npz` direttamente su Drive senza duplicazioni.
 
 ---
 
